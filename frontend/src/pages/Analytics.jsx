@@ -1,22 +1,49 @@
 import { useState, useEffect } from 'react';
 import { getDetailedAnalytics, getCampaigns } from '../utils/api';
-import { 
-  BarChart3, Eye, MousePointerClick, TrendingUp, 
+import {
+  BarChart3, Eye, MousePointerClick, TrendingUp,
   Calendar, Filter, Download
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { format, subDays } from 'date-fns';
+import { format, subDays, startOfYear } from 'date-fns';
 import toast from 'react-hot-toast';
 
 export default function Analytics() {
   const [data, setData] = useState({ announcements: [], channels: [] });
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeQuickFilter, setActiveQuickFilter] = useState('last30');
   const [filters, setFilters] = useState({
-    start_date: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+    start_date: format(subDays(new Date(), 29), 'yyyy-MM-dd'),
     end_date: format(new Date(), 'yyyy-MM-dd'),
     campaign_id: ''
   });
+
+  const quickFilters = [
+    { id: 'today', label: 'Today', getDates: () => ({ start: new Date(), end: new Date() }) },
+    { id: 'last7', label: 'Last 7 Days', getDates: () => ({ start: subDays(new Date(), 6), end: new Date() }) },
+    { id: 'last30', label: 'Last 30 Days', getDates: () => ({ start: subDays(new Date(), 29), end: new Date() }) },
+    { id: 'last90', label: 'Last 90 Days', getDates: () => ({ start: subDays(new Date(), 89), end: new Date() }) },
+    { id: 'thisYear', label: 'This Year', getDates: () => ({ start: startOfYear(new Date()), end: new Date() }) },
+  ];
+
+  const applyQuickFilter = (filterId) => {
+    const filter = quickFilters.find(f => f.id === filterId);
+    if (filter) {
+      const { start, end } = filter.getDates();
+      setActiveQuickFilter(filterId);
+      setFilters(prev => ({
+        ...prev,
+        start_date: format(start, 'yyyy-MM-dd'),
+        end_date: format(end, 'yyyy-MM-dd')
+      }));
+    }
+  };
+
+  const handleDateChange = (field, value) => {
+    setActiveQuickFilter(null);
+    setFilters(prev => ({ ...prev, [field]: value }));
+  };
 
   useEffect(() => {
     loadData();
@@ -71,21 +98,39 @@ export default function Analytics() {
       </div>
 
       {/* Filters */}
-      <div className="card p-4">
+      <div className="card p-4 space-y-4">
+        {/* Quick Filter Buttons */}
+        <div className="flex flex-wrap gap-2">
+          {quickFilters.map((filter) => (
+            <button
+              key={filter.id}
+              onClick={() => applyQuickFilter(filter.id)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                activeQuickFilter === filter.id
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Date Pickers and Campaign Filter */}
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-dark-500" />
+            <Calendar className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <input
               type="date"
               value={filters.start_date}
-              onChange={(e) => setFilters(prev => ({ ...prev, start_date: e.target.value }))}
+              onChange={(e) => handleDateChange('start_date', e.target.value)}
               className="input py-1.5 w-auto"
             />
-            <span className="text-dark-500">to</span>
+            <span className="text-slate-500 dark:text-slate-400">to</span>
             <input
               type="date"
               value={filters.end_date}
-              onChange={(e) => setFilters(prev => ({ ...prev, end_date: e.target.value }))}
+              onChange={(e) => handleDateChange('end_date', e.target.value)}
               className="input py-1.5 w-auto"
             />
           </div>

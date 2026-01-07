@@ -211,12 +211,14 @@ router.get('/analytics/detailed', authenticate, async (req, res) => {
 
     if (start_date) {
       // Use COALESCE to handle NULL sent_at - treat as created_at if missing
-      query += ` AND COALESCE(a.sent_at, a.created_at) >= $${paramIndex++}::timestamptz`;
+      // Cast date string to timestamp at start of day (00:00:00)
+      query += ` AND COALESCE(a.sent_at, a.created_at) >= ($${paramIndex++}::date)::timestamp`;
       params.push(start_date);
     }
     if (end_date) {
-      // Add 1 day to include the entire end date, use timestamptz for proper comparison
-      query += ` AND COALESCE(a.sent_at, a.created_at) < ($${paramIndex++}::date + interval '1 day')::timestamptz`;
+      // Include the entire end date by comparing to end of day (23:59:59.999999)
+      // Add 1 day and use < comparison to include all of end_date
+      query += ` AND COALESCE(a.sent_at, a.created_at) < (($${paramIndex++}::date) + interval '1 day')::timestamp`;
       params.push(end_date);
     }
     if (campaign_id) {
