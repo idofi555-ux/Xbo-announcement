@@ -86,7 +86,7 @@ export default function App() {
             },
             success: {
               iconTheme: {
-                primary: '#22c55e',
+                primary: '#3b82f6',
                 secondary: '#f1f5f9',
               },
             },

@@ -52,7 +52,7 @@ export default function Layout({ children }) {
         onClick={() => mobile && setMobileMenuOpen(false)}
         className={`sidebar-link group ${
           isActive 
-            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25' 
+            ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25' 
             : 'text-slate-600 hover:bg-slate-100'
         }`}
       >
@@ -67,7 +67,7 @@ export default function Layout({ children }) {
       {/* Logo - only on desktop */}
       {!mobile && (
         <div className="flex items-center gap-3 px-6 py-5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
             <Zap className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -84,7 +84,7 @@ export default function Layout({ children }) {
           <input 
             type="text" 
             placeholder="Search..." 
-            className="w-full pl-9 pr-4 py-2.5 bg-slate-100 border-0 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+            className="w-full pl-9 pr-4 py-2.5 bg-slate-100 border-0 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
           />
         </div>
       </div>
@@ -110,7 +110,7 @@ export default function Layout({ children }) {
       <div className="p-4">
         <div className="p-3 bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-semibold text-sm shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm shadow-md">
               {user?.name?.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -142,7 +142,7 @@ export default function Layout({ children }) {
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-md shadow-emerald-500/25">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/25">
               <Zap className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-slate-800">XBO</span>
@@ -164,7 +164,7 @@ export default function Layout({ children }) {
           <div className="absolute left-0 top-0 bottom-0 w-80 bg-white shadow-2xl animate-slide-in">
             <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-md shadow-emerald-500/25">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/25">
                   <Zap className="w-4 h-4 text-white" />
                 </div>
                 <span className="font-bold text-slate-800">XBO</span>

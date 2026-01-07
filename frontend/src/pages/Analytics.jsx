@@ -50,7 +50,7 @@ export default function Analytics() {
   const totalClicks = data.announcements.reduce((sum, a) => sum + (a.clicks || 0), 0);
   const avgCTR = totalViews > 0 ? ((totalClicks / totalViews) * 100).toFixed(2) : 0;
 
-  const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'];
+  const COLORS = ['#3b82f6', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'];
 
   const channelData = data.channels
     .filter(c => c.total_views > 0)
@@ -117,8 +117,8 @@ export default function Analytics() {
         </div>
         <div className="stat-card">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-green-500/10">
-              <MousePointerClick className="w-5 h-5 text-green-400" />
+            <div className="p-2 rounded-lg bg-blue-500/10">
+              <MousePointerClick className="w-5 h-5 text-blue-400" />
             </div>
             <div>
               <p className="text-2xl font-semibold text-white">{totalClicks.toLocaleString()}</p>
@@ -162,7 +162,7 @@ export default function Analytics() {
                   labelStyle={{ color: '#f1f5f9' }}
                 />
                 <Bar dataKey="views" fill="#3b82f6" name="Views" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="clicks" fill="#22c55e" name="Clicks" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="clicks" fill="#3b82f6" name="Clicks" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -266,7 +266,7 @@ export default function Analytics() {
                     <td className="text-right text-dark-400">{item.unique_clicks || 0}</td>
                     <td className="text-right">
                       <span className={`font-medium ${
-                        parseFloat(item.ctr) > 5 ? 'text-green-400' : 
+                        parseFloat(item.ctr) > 5 ? 'text-blue-400' : 
                         parseFloat(item.ctr) > 2 ? 'text-yellow-400' : 'text-dark-400'
                       }`}>
                         {item.ctr}%

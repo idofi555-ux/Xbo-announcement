@@ -73,7 +73,7 @@ export default function Settings() {
             <span className="text-dark-300">API Server</span>
             <div className="flex items-center gap-2">
               {health?.status === 'ok' ? (
-                <><CheckCircle className="w-4 h-4 text-green-400" /> <span className="text-green-400">Connected</span></>
+                <><CheckCircle className="w-4 h-4 text-blue-400" /> <span className="text-blue-400">Connected</span></>
               ) : (
                 <><XCircle className="w-4 h-4 text-red-400" /> <span className="text-red-400">Error</span></>
               )}
@@ -83,7 +83,7 @@ export default function Settings() {
             <span className="text-dark-300">Telegram Bot</span>
             <div className="flex items-center gap-2">
               {health?.bot === 'connected' ? (
-                <><CheckCircle className="w-4 h-4 text-green-400" /> <span className="text-green-400">Connected</span></>
+                <><CheckCircle className="w-4 h-4 text-blue-400" /> <span className="text-blue-400">Connected</span></>
               ) : (
                 <><XCircle className="w-4 h-4 text-yellow-400" /> <span className="text-yellow-400">Not configured</span></>
               )}

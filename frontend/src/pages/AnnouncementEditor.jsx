@@ -340,9 +340,9 @@ export default function AnnouncementEditor() {
                   <Line 
                     type="monotone" 
                     dataKey="clicks" 
-                    stroke="#22c55e" 
+                    stroke="#3b82f6" 
                     strokeWidth={2}
-                    dot={{ fill: '#22c55e', strokeWidth: 0 }}
+                    dot={{ fill: '#3b82f6', strokeWidth: 0 }}
                   />
                 </LineChart>
               </ResponsiveContainer>

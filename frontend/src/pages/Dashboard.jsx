@@ -52,8 +52,8 @@ export default function Dashboard() {
       change: '+12%',
       up: true,
       icon: Megaphone,
-      gradient: 'from-emerald-500 to-teal-600',
-      shadow: 'shadow-emerald-500/25'
+      gradient: 'from-blue-500 to-indigo-600',
+      shadow: 'shadow-blue-500/25'
     },
     { 
       label: 'Channels', 
@@ -92,7 +92,7 @@ export default function Dashboard() {
 
   const StatusBadge = ({ status }) => {
     const config = {
-      sent: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+      sent: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
       scheduled: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
       draft: { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' },
       failed: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
@@ -121,7 +121,7 @@ export default function Dashboard() {
           </button>
           <Link 
             to="/announcements/new" 
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-medium shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/30 hover:-translate-y-0.5 transition-all duration-200"
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 transition-all duration-200"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">New Announcement</span>
@@ -138,7 +138,7 @@ export default function Dashboard() {
               <div className={`p-2 lg:p-2.5 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-lg ${stat.shadow}`}>
                 <stat.icon className="w-4 h-4 lg:w-5 lg:h-5 text-white" />
               </div>
-              <span className={`flex items-center gap-0.5 text-xs font-medium ${stat.up ? 'text-emerald-600' : 'text-red-500'}`}>
+              <span className={`flex items-center gap-0.5 text-xs font-medium ${stat.up ? 'text-blue-600' : 'text-red-500'}`}>
                 {stat.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                 {stat.change}
               </span>
@@ -164,8 +164,8 @@ export default function Dashboard() {
               <AreaChart data={data.clicksTimeline}>
                 <defs>
                   <linearGradient id="clicksGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis 
@@ -189,7 +189,7 @@ export default function Dashboard() {
                 <Area 
                   type="monotone" 
                   dataKey="clicks" 
-                  stroke="#10b981" 
+                  stroke="#3b82f6" 
                   strokeWidth={2} 
                   fill="url(#clicksGradient)" 
                 />
@@ -212,7 +212,7 @@ export default function Dashboard() {
               <h2 className="text-lg font-bold text-slate-800">Top Performing</h2>
               <p className="text-sm text-slate-500">Best announcements by clicks</p>
             </div>
-            <Link to="/analytics" className="text-sm text-emerald-600 font-medium hover:text-emerald-700 flex items-center gap-1">
+            <Link to="/analytics" className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1">
               View all <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -224,11 +224,11 @@ export default function Dashboard() {
                   to={`/announcements/${item.id}`}
                   className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group"
                 >
-                  <span className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
+                  <span className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
                     {idx + 1}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate group-hover:text-emerald-600 transition-colors">
+                    <p className="text-sm font-medium text-slate-800 truncate group-hover:text-blue-600 transition-colors">
                       {item.title}
                     </p>
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
@@ -259,7 +259,7 @@ export default function Dashboard() {
             <h2 className="text-lg font-bold text-slate-800">Recent Announcements</h2>
             <p className="text-sm text-slate-500">Track your latest campaigns</p>
           </div>
-          <Link to="/announcements" className="text-sm text-emerald-600 font-medium hover:text-emerald-700 flex items-center gap-1">
+          <Link to="/announcements" className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1">
             View all <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -273,11 +273,11 @@ export default function Dashboard() {
                 className="flex items-center gap-4 p-4 lg:px-6 hover:bg-slate-50 transition-colors"
               >
                 <div className={`p-2.5 rounded-xl ${
-                  item.status === 'sent' ? 'bg-emerald-100' : 
+                  item.status === 'sent' ? 'bg-blue-100' : 
                   item.status === 'scheduled' ? 'bg-blue-100' : 'bg-slate-100'
                 }`}>
                   {item.status === 'sent' ? (
-                    <Send className="w-4 h-4 text-emerald-600" />
+                    <Send className="w-4 h-4 text-blue-600" />
                   ) : item.status === 'scheduled' ? (
                     <Clock className="w-4 h-4 text-blue-600" />
                   ) : (
@@ -311,7 +311,7 @@ export default function Dashboard() {
             <p className="text-slate-500 mb-4">Create your first announcement to get started</p>
             <Link 
               to="/announcements/new" 
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-medium shadow-lg shadow-emerald-500/25 hover:shadow-xl transition-all"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 hover:shadow-xl transition-all"
             >
               <Plus className="w-4 h-4" />
               Create Announcement
@@ -323,7 +323,7 @@ export default function Dashboard() {
       {/* Mobile FAB */}
       <Link
         to="/announcements/new"
-        className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl shadow-lg shadow-emerald-500/30 flex items-center justify-center hover:shadow-xl active:scale-95 transition-all z-30"
+        className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-2xl shadow-lg shadow-blue-500/30 flex items-center justify-center hover:shadow-xl active:scale-95 transition-all z-30"
       >
         <Plus className="w-6 h-6" />
       </Link>
