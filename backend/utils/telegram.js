@@ -159,6 +159,33 @@ const initBot = () => {
 
           console.log(`Button click recorded: announcement=${announcementId}, user=${user.username || user.id}`);
 
+          // Also record as a view (button click = user definitely saw the message)
+          const viewerHash = `tg_${user.id}`;
+
+          // Check if view already exists for this user
+          const existingView = await pool.query(
+            `SELECT id FROM pixel_views WHERE announcement_id = $1 AND viewer_hash = $2`,
+            [announcementId, viewerHash]
+          );
+
+          if (existingView.rows.length === 0) {
+            await pool.query(
+              `INSERT INTO pixel_views (announcement_id, channel_id, viewer_hash, device_type, browser)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [announcementId, channelId || null, viewerHash, 'mobile', 'Telegram']
+            );
+
+            // Update view count in announcement_targets
+            if (channelId) {
+              await pool.query(
+                `UPDATE announcement_targets SET views = views + 1 WHERE announcement_id = $1 AND channel_id = $2`,
+                [announcementId, channelId]
+              );
+            }
+
+            console.log(`View recorded from button click: announcement=${announcementId}, user=${user.id}`);
+          }
+
           // Answer the callback query with a notification
           await bot.answerCallbackQuery(callbackQuery.id, {
             text: 'Thanks for your interest!',

@@ -971,6 +971,70 @@ router.get('/analytics/insights/channels', authenticate, async (req, res) => {
   }
 });
 
+// Get user details by Telegram ID
+router.get('/analytics/user/:telegramUserId', authenticate, async (req, res) => {
+  try {
+    const { telegramUserId } = req.params;
+    console.log(`[USER DETAILS] Fetching details for user: ${telegramUserId}`);
+
+    // Get all clicks by this user
+    const clicksResult = await pool.query(`
+      SELECT
+        bc.id,
+        bc.button_text,
+        bc.clicked_at,
+        bc.announcement_id,
+        bc.channel_id,
+        a.title as announcement_title,
+        ch.title as channel_title
+      FROM button_clicks bc
+      LEFT JOIN announcements a ON bc.announcement_id = a.id
+      LEFT JOIN channels ch ON bc.channel_id = ch.id
+      WHERE bc.telegram_user_id = $1
+      ORDER BY bc.clicked_at DESC
+      LIMIT 50
+    `, [telegramUserId]);
+
+    // Get total click count
+    const totalClicksResult = await pool.query(
+      'SELECT COUNT(*) as total FROM button_clicks WHERE telegram_user_id = $1',
+      [telegramUserId]
+    );
+
+    // Get unique announcements engaged
+    const uniqueAnnouncementsResult = await pool.query(`
+      SELECT a.id, a.title, COUNT(*) as click_count
+      FROM button_clicks bc
+      JOIN announcements a ON bc.announcement_id = a.id
+      WHERE bc.telegram_user_id = $1
+      GROUP BY a.id, a.title
+      ORDER BY click_count DESC
+    `, [telegramUserId]);
+
+    // Get unique channels
+    const uniqueChannelsResult = await pool.query(
+      'SELECT COUNT(DISTINCT channel_id) as total FROM button_clicks WHERE telegram_user_id = $1 AND channel_id IS NOT NULL',
+      [telegramUserId]
+    );
+
+    res.json({
+      telegramUserId,
+      totalClicks: parseInt(totalClicksResult.rows[0].total) || 0,
+      uniqueAnnouncements: uniqueAnnouncementsResult.rows.length,
+      uniqueChannels: parseInt(uniqueChannelsResult.rows[0].total) || 0,
+      clicks: clicksResult.rows,
+      announcements: uniqueAnnouncementsResult.rows.map(a => ({
+        id: a.id,
+        title: a.title,
+        click_count: parseInt(a.click_count) || 0
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching user details:', error);
+    res.status(500).json({ error: 'Failed to fetch user details' });
+  }
+});
+
 // Get smart recommendations
 router.get('/analytics/insights/recommendations', authenticate, async (req, res) => {
   try {

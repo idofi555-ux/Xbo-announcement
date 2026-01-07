@@ -79,6 +79,9 @@ export const getCampaignInsights = () => api.get('/analytics/insights/campaigns'
 export const getChannelInsights = () => api.get('/analytics/insights/channels');
 export const getRecommendations = () => api.get('/analytics/insights/recommendations');
 
+// User details
+export const getUserDetails = (telegramUserId) => api.get(`/analytics/user/${telegramUserId}`);
+
 // Health check
 export const healthCheck = () => api.get('/health');
 

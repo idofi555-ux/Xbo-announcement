@@ -52,10 +52,14 @@ const processContentLinks = async (content, announcementId, campaignName = null)
 };
 
 // Record a click with geolocation and device data
+// Also records a view since link click = user saw the message
 const recordClick = async (shortCode, requestInfo = {}) => {
   try {
+    // Get link with announcement info
     const linkResult = await pool.query(
-      'SELECT id FROM tracked_links WHERE short_code = $1',
+      `SELECT tl.id, tl.announcement_id,
+              (SELECT at.channel_id FROM announcement_targets at WHERE at.announcement_id = tl.announcement_id LIMIT 1) as channel_id
+       FROM tracked_links tl WHERE tl.short_code = $1`,
       [shortCode]
     );
 
@@ -74,6 +78,7 @@ const recordClick = async (shortCode, requestInfo = {}) => {
       console.error(`[recordClick] Geolocation error (using defaults):`, geoError.message);
     }
 
+    // Record the click
     await pool.query(
       `INSERT INTO link_clicks (link_id, ip_address, user_agent, referer, country, city, device_type, browser)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -88,6 +93,46 @@ const recordClick = async (shortCode, requestInfo = {}) => {
         trackingData.browser
       ]
     );
+
+    // Also record as a view (link click = user definitely saw the message)
+    if (link.announcement_id) {
+      const viewerHash = Buffer.from(`${requestInfo.ip || 'unknown'}-${requestInfo.userAgent || 'unknown'}`).toString('base64').substring(0, 32);
+      const channelId = link.channel_id || null;
+
+      // Check if view already exists
+      const existingView = await pool.query(
+        `SELECT id FROM pixel_views WHERE announcement_id = $1 AND viewer_hash = $2`,
+        [link.announcement_id, viewerHash]
+      );
+
+      if (existingView.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO pixel_views (announcement_id, channel_id, viewer_hash, ip_address, user_agent, country, city, device_type, browser)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            link.announcement_id,
+            channelId,
+            viewerHash,
+            requestInfo.ip || null,
+            requestInfo.userAgent || null,
+            trackingData.country,
+            trackingData.city,
+            trackingData.deviceType,
+            trackingData.browser
+          ]
+        );
+
+        // Update view count in announcement_targets
+        if (channelId) {
+          await pool.query(
+            `UPDATE announcement_targets SET views = views + 1 WHERE announcement_id = $1 AND channel_id = $2`,
+            [link.announcement_id, channelId]
+          );
+        }
+
+        console.log(`[recordClick] View recorded for announcement: ${link.announcement_id}`);
+      }
+    }
 
     console.log(`[recordClick] Click recorded for link_id: ${link.id}`);
     return link;

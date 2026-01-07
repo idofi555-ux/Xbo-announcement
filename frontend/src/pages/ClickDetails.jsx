@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { getClickDetails, getViewDetails, getButtonClicks, getAggregatedAnalytics, exportClicks, getAnnouncements } from '../utils/api';
+import { getClickDetails, getViewDetails, getButtonClicks, getAggregatedAnalytics, exportClicks, getAnnouncements, getUserDetails } from '../utils/api';
 import {
   MousePointerClick, Eye, Users, Globe, Smartphone, Monitor,
   Tablet, Clock, Download, Calendar, ChevronLeft, ChevronRight,
-  AtSign, TrendingUp, UserCheck, Activity
+  AtSign, TrendingUp, UserCheck, Activity, X, Info, MessageSquare
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, isToday } from 'date-fns';
@@ -33,6 +33,9 @@ export default function ClickDetails() {
     end_date: format(new Date(), 'yyyy-MM-dd'),
     announcement_id: ''
   });
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userDetails, setUserDetails] = useState(null);
+  const [loadingUserDetails, setLoadingUserDetails] = useState(false);
 
   useEffect(() => {
     loadAnnouncements();
@@ -137,6 +140,26 @@ export default function ClickDetails() {
 
   const goToPage = (page) => {
     setPagination(prev => ({ ...prev, offset: (page - 1) * prev.limit }));
+  };
+
+  const handleShowUserDetails = async (userId, username, firstName) => {
+    setSelectedUser({ id: userId, username, firstName });
+    setLoadingUserDetails(true);
+    try {
+      const { data } = await getUserDetails(userId);
+      setUserDetails(data);
+    } catch (error) {
+      console.error('Failed to load user details:', error);
+      toast.error('Failed to load user details');
+      setUserDetails(null);
+    } finally {
+      setLoadingUserDetails(false);
+    }
+  };
+
+  const closeUserModal = () => {
+    setSelectedUser(null);
+    setUserDetails(null);
   };
 
   const tabs = [
@@ -403,12 +426,13 @@ export default function ClickDetails() {
                       <th>Action</th>
                       <th>Message</th>
                       <th>Date & Time</th>
+                      <th>Details</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.buttonClicks.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center text-slate-500 py-8">No user data found</td>
+                        <td colSpan={6} className="text-center text-slate-500 py-8">No user data found</td>
                       </tr>
                     ) : (
                       data.buttonClicks.map((click) => (
@@ -449,6 +473,15 @@ export default function ClickDetails() {
                           </td>
                           <td className="text-slate-500 text-sm whitespace-nowrap">
                             {click.clicked_at ? format(new Date(click.clicked_at), 'MMM d, yyyy h:mm a') : '-'}
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => handleShowUserDetails(click.telegram_user_id, click.telegram_username, click.telegram_first_name)}
+                              className="btn btn-secondary py-1 px-2 text-xs flex items-center gap-1"
+                            >
+                              <Info className="w-3 h-3" />
+                              More Info
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -610,6 +643,124 @@ export default function ClickDetails() {
           </>
         )}
       </div>
+
+      {/* User Details Modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeUserModal} />
+          <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <Users className="w-6 h-6 text-blue-500" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
+                    {selectedUser.firstName || 'Unknown User'}
+                  </h2>
+                  {selectedUser.username && (
+                    <a
+                      href={`https://t.me/${selectedUser.username}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-500 hover:underline flex items-center gap-1"
+                    >
+                      <AtSign className="w-3 h-3" />
+                      {selectedUser.username}
+                    </a>
+                  )}
+                  <p className="text-xs text-slate-500">ID: {selectedUser.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={closeUserModal}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-100px)]">
+              {loadingUserDetails ? (
+                <div className="py-8 text-center text-slate-500">Loading user details...</div>
+              ) : userDetails ? (
+                <div className="space-y-6">
+                  {/* User Stats */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl text-center">
+                      <p className="text-2xl font-bold text-blue-500">{userDetails.totalClicks || 0}</p>
+                      <p className="text-xs text-slate-500">Total Clicks</p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl text-center">
+                      <p className="text-2xl font-bold text-green-500">{userDetails.uniqueAnnouncements || 0}</p>
+                      <p className="text-xs text-slate-500">Messages Engaged</p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl text-center">
+                      <p className="text-2xl font-bold text-purple-500">{userDetails.uniqueChannels || 0}</p>
+                      <p className="text-xs text-slate-500">Channels Active</p>
+                    </div>
+                  </div>
+
+                  {/* Click History */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                      <MousePointerClick className="w-4 h-4" />
+                      Click History
+                    </h3>
+                    {userDetails.clicks?.length > 0 ? (
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                        {userDetails.clicks.map((click, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <span className="badge badge-info text-xs">{click.button_text}</span>
+                              <span className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
+                                {click.announcement_title || 'Unknown Message'}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-500">
+                              {click.clicked_at ? format(new Date(click.clicked_at), 'MMM d, h:mm a') : '-'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No click history available</p>
+                    )}
+                  </div>
+
+                  {/* Announcements Engaged */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      Messages Interacted With
+                    </h3>
+                    {userDetails.announcements?.length > 0 ? (
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                        {userDetails.announcements.map((ann, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                            <span className="text-sm text-slate-700 dark:text-slate-300">
+                              {ann.title}
+                            </span>
+                            <span className="text-xs text-slate-500">{ann.click_count} clicks</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No message interactions found</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-8 text-center text-slate-500">
+                  No details available for this user
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

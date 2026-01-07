@@ -277,6 +277,17 @@ const initDatabase = async () => {
 
         console.log('Migrations complete.');
 
+        // Migration: Update admin email from admin@xbo.com to ido@xbo.com
+        try {
+          await client.query(
+            'UPDATE users SET email = $1 WHERE email = $2',
+            ['ido@xbo.com', 'admin@xbo.com']
+          );
+          console.log('Admin email migration checked (admin@xbo.com -> ido@xbo.com)');
+        } catch (e) {
+          // Ignore if already updated or doesn't exist
+        }
+
         // Create default admin
         const adminResult = await client.query(
           'SELECT COUNT(*) as count FROM users WHERE role = $1',
@@ -456,6 +467,14 @@ const initDatabase = async () => {
       }
 
       console.log('Migrations complete.');
+
+      // Migration: Update admin email from admin@xbo.com to ido@xbo.com
+      try {
+        db.prepare('UPDATE users SET email = ? WHERE email = ?').run('ido@xbo.com', 'admin@xbo.com');
+        console.log('Admin email migration checked (admin@xbo.com -> ido@xbo.com)');
+      } catch (e) {
+        // Ignore if already updated or doesn't exist
+      }
 
       // Create default admin
       const adminResult = db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get('admin');
