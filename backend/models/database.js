@@ -40,26 +40,38 @@ if (USE_POSTGRES) {
     const path = require('path');
     const fs = require('fs');
 
-    // Use SQLITE_PATH env var if set (for Railway volume), otherwise use local path
+    // Determine database path:
+    // 1. Use SQLITE_PATH env var if set (explicit override)
+    // 2. In production, default to /data/xbo.db (Railway mounted volume)
+    // 3. In development, use local backend/data/xbo.db
     let dbPath;
     let dataDir;
+    const isProduction = process.env.NODE_ENV === 'production';
 
     if (process.env.SQLITE_PATH) {
-      // Use the path from environment variable (set in railway.toml)
+      // Explicit path from environment variable
       dbPath = process.env.SQLITE_PATH;
       dataDir = path.dirname(dbPath);
+    } else if (isProduction) {
+      // Production default: Railway mounted volume at /data
+      dataDir = '/data';
+      dbPath = '/data/xbo.db';
     } else {
       // Local development
       dataDir = path.join(__dirname, '../data');
       dbPath = path.join(dataDir, 'xbo.db');
     }
 
-    console.log('=== SQLite Path Debug ===');
+    console.log('');
+    console.log('========================================');
+    console.log('       SQLite Database Configuration    ');
+    console.log('========================================');
+    console.log('Environment:', isProduction ? 'PRODUCTION' : 'DEVELOPMENT');
     console.log('SQLITE_PATH env:', process.env.SQLITE_PATH || 'NOT SET');
-    console.log('Current working directory:', process.cwd());
-    console.log('__dirname:', __dirname);
-    console.log('Data directory:', dataDir);
     console.log('Database path:', dbPath);
+    console.log('Data directory:', dataDir);
+    console.log('========================================');
+    console.log('');
 
     // Ensure data directory exists
     if (!fs.existsSync(dataDir)) {
@@ -67,14 +79,11 @@ if (USE_POSTGRES) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
 
-    console.log('Directory exists:', fs.existsSync(dataDir));
-    if (fs.existsSync(dataDir)) {
-      console.log('Directory contents:', fs.readdirSync(dataDir));
-    }
-
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
-    console.log('SQLite database opened at:', dbPath);
+
+    console.log('SQLite database opened successfully!');
+    console.log('Database file exists:', fs.existsSync(dbPath));
   } catch (error) {
     console.error('Failed to initialize SQLite:', error.message);
     console.error('Full error:', error);
