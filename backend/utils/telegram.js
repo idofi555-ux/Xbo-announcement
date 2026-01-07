@@ -217,24 +217,37 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
   let replyMarkup = null;
   if (announcement.buttons) {
     try {
+      console.log('Raw buttons from DB:', announcement.buttons);
       const buttons = JSON.parse(announcement.buttons);
-      if (buttons.length > 0) {
+      console.log('Parsed buttons:', JSON.stringify(buttons));
+
+      if (Array.isArray(buttons) && buttons.length > 0) {
         // Replace button URLs with tracked versions, filter out invalid buttons
         const trackedButtons = buttons
-          .filter(btn => btn.text && btn.url) // Only include buttons with both text and URL
+          .filter(btn => {
+            const hasText = btn.text && btn.text.trim().length > 0;
+            const hasUrl = btn.url && btn.url.trim().length > 0;
+            console.log(`Button check: text="${btn.text}" url="${btn.url}" valid=${hasText && hasUrl}`);
+            return hasText && hasUrl;
+          })
           .map(btn => {
             const trackedLink = trackedLinks.find(l => l.original_url === btn.url);
             return {
-              text: btn.text,
-              url: trackedLink ? trackedLink.tracked_url : btn.url
+              text: btn.text.trim(),
+              url: trackedLink ? trackedLink.tracked_url : btn.url.trim()
             };
           });
+
+        console.log('Filtered buttons:', JSON.stringify(trackedButtons));
 
         // Only add reply markup if there are valid buttons
         if (trackedButtons.length > 0) {
           replyMarkup = {
             inline_keyboard: trackedButtons.map(btn => [btn])
           };
+          console.log('Reply markup:', JSON.stringify(replyMarkup));
+        } else {
+          console.log('No valid buttons after filtering, skipping reply_markup');
         }
       }
     } catch (e) {
