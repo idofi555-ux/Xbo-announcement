@@ -127,6 +127,13 @@ router.get('/analytics/overview', authenticate, async (req, res) => {
       LIMIT 5
     `);
 
+    // Parse recent announcements numbers
+    const recentAnnouncements = recentResult.rows.map(a => ({
+      ...a,
+      views: parseInt(a.views) || 0,
+      clicks: parseInt(a.clicks) || 0
+    }));
+
     // Clicks over last 7 days
     const clicksTimelineResult = await pool.query(`
       SELECT DATE(clicked_at) as date, COUNT(*) as clicks
@@ -135,6 +142,12 @@ router.get('/analytics/overview', authenticate, async (req, res) => {
       GROUP BY DATE(clicked_at)
       ORDER BY date
     `);
+
+    // Parse timeline numbers
+    const clicksTimeline = clicksTimelineResult.rows.map(t => ({
+      ...t,
+      clicks: parseInt(t.clicks) || 0
+    }));
 
     // Top performing announcements
     const topResult = await pool.query(`
@@ -152,11 +165,18 @@ router.get('/analytics/overview', authenticate, async (req, res) => {
       LIMIT 5
     `);
 
+    // Parse top announcements numbers
+    const topAnnouncements = topResult.rows.map(a => ({
+      ...a,
+      views: parseInt(a.views) || 0,
+      clicks: parseInt(a.clicks) || 0
+    }));
+
     res.json({
       stats,
-      recentAnnouncements: recentResult.rows,
-      clicksTimeline: clicksTimelineResult.rows,
-      topAnnouncements: topResult.rows
+      recentAnnouncements,
+      clicksTimeline,
+      topAnnouncements
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);
@@ -190,11 +210,12 @@ router.get('/analytics/detailed', authenticate, async (req, res) => {
     let paramIndex = 1;
 
     if (start_date) {
-      query += ` AND a.sent_at >= $${paramIndex++}`;
+      query += ` AND a.sent_at >= $${paramIndex++}::date`;
       params.push(start_date);
     }
     if (end_date) {
-      query += ` AND a.sent_at <= $${paramIndex++}`;
+      // Add 1 day to include the entire end date
+      query += ` AND a.sent_at < ($${paramIndex++}::date + interval '1 day')`;
       params.push(end_date);
     }
     if (campaign_id) {
@@ -229,7 +250,15 @@ router.get('/analytics/detailed', authenticate, async (req, res) => {
       ORDER BY total_views DESC
     `);
 
-    res.json({ announcements: announcementsWithCTR, channels: channelsResult.rows });
+    // Parse channel numbers
+    const channelsWithNumbers = channelsResult.rows.map(ch => ({
+      ...ch,
+      member_count: parseInt(ch.member_count) || 0,
+      announcements_received: parseInt(ch.announcements_received) || 0,
+      total_views: parseInt(ch.total_views) || 0
+    }));
+
+    res.json({ announcements: announcementsWithCTR, channels: channelsWithNumbers });
   } catch (error) {
     console.error('Error fetching detailed analytics:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
