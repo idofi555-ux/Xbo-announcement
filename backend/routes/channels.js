@@ -137,13 +137,17 @@ router.delete('/:id', authenticate, async (req, res) => {
 
     const channel = channelResult.rows[0];
 
+    // Delete related announcement_targets first (foreign key constraint)
+    await pool.query('DELETE FROM announcement_targets WHERE channel_id = $1', [id]);
+
+    // Now delete the channel
     await pool.query('DELETE FROM channels WHERE id = $1', [id]);
     await logActivity(req.user.id, 'channel_deleted', { title: channel.title });
 
     res.json({ message: 'Channel deleted' });
   } catch (error) {
     console.error('Error deleting channel:', error);
-    res.status(500).json({ error: 'Failed to delete channel' });
+    res.status(500).json({ error: 'Failed to delete channel: ' + error.message });
   }
 });
 
