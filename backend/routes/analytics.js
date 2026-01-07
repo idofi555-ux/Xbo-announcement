@@ -1,5 +1,5 @@
 const express = require('express');
-const { pool } = require('../models/database');
+const { pool, USE_POSTGRES } = require('../models/database');
 const { authenticate, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
@@ -107,12 +107,12 @@ router.get('/analytics/overview', authenticate, async (req, res) => {
     const totalViews = await pool.query('SELECT COALESCE(SUM(views), 0) as sum FROM announcement_targets');
 
     const stats = {
-      total_announcements: parseInt(totalAnnouncements.rows[0].count),
-      sent_announcements: parseInt(sentAnnouncements.rows[0].count),
-      scheduled_announcements: parseInt(scheduledAnnouncements.rows[0].count),
-      total_channels: parseInt(totalChannels.rows[0].count),
-      total_clicks: parseInt(totalClicks.rows[0].count),
-      total_views: parseInt(totalViews.rows[0].sum)
+      total_announcements: parseInt(totalAnnouncements.rows[0].count) || 0,
+      sent_announcements: parseInt(sentAnnouncements.rows[0].count) || 0,
+      scheduled_announcements: parseInt(scheduledAnnouncements.rows[0].count) || 0,
+      total_channels: parseInt(totalChannels.rows[0].count) || 0,
+      total_clicks: parseInt(totalClicks.rows[0].count) || 0,
+      total_views: parseInt(totalViews.rows[0].sum) || 0
     };
 
     // Recent activity
@@ -134,14 +134,28 @@ router.get('/analytics/overview', authenticate, async (req, res) => {
       clicks: parseInt(a.clicks) || 0
     }));
 
-    // Clicks over last 7 days
-    const clicksTimelineResult = await pool.query(`
-      SELECT DATE(clicked_at AT TIME ZONE 'UTC') as date, COUNT(*) as clicks
-      FROM link_clicks
-      WHERE clicked_at >= (CURRENT_DATE - INTERVAL '7 days')
-      GROUP BY DATE(clicked_at AT TIME ZONE 'UTC')
-      ORDER BY date
-    `);
+    // Clicks over last 7 days - use database-specific query
+    let clicksTimelineQuery;
+    if (USE_POSTGRES) {
+      clicksTimelineQuery = `
+        SELECT DATE(clicked_at) as date, COUNT(*) as clicks
+        FROM link_clicks
+        WHERE clicked_at >= CURRENT_DATE - INTERVAL '7 days'
+        GROUP BY DATE(clicked_at)
+        ORDER BY date
+      `;
+    } else {
+      // SQLite syntax
+      clicksTimelineQuery = `
+        SELECT DATE(clicked_at) as date, COUNT(*) as clicks
+        FROM link_clicks
+        WHERE clicked_at >= date('now', '-7 days')
+        GROUP BY DATE(clicked_at)
+        ORDER BY date
+      `;
+    }
+
+    const clicksTimelineResult = await pool.query(clicksTimelineQuery);
 
     // Parse timeline numbers
     const clicksTimeline = clicksTimelineResult.rows.map(t => ({
@@ -210,15 +224,19 @@ router.get('/analytics/detailed', authenticate, async (req, res) => {
     let paramIndex = 1;
 
     if (start_date) {
-      // Use COALESCE to handle NULL sent_at - treat as created_at if missing
-      // Cast date string to timestamp at start of day (00:00:00)
-      query += ` AND COALESCE(a.sent_at, a.created_at) >= ($${paramIndex++}::date)::timestamp`;
+      if (USE_POSTGRES) {
+        query += ` AND COALESCE(a.sent_at, a.created_at) >= $${paramIndex++}`;
+      } else {
+        query += ` AND COALESCE(a.sent_at, a.created_at) >= $${paramIndex++}`;
+      }
       params.push(start_date);
     }
     if (end_date) {
-      // Include the entire end date by comparing to end of day (23:59:59.999999)
-      // Add 1 day and use < comparison to include all of end_date
-      query += ` AND COALESCE(a.sent_at, a.created_at) < (($${paramIndex++}::date) + interval '1 day')::timestamp`;
+      if (USE_POSTGRES) {
+        query += ` AND COALESCE(a.sent_at, a.created_at) < date($${paramIndex++}) + INTERVAL '1 day'`;
+      } else {
+        query += ` AND COALESCE(a.sent_at, a.created_at) < date($${paramIndex++}, '+1 day')`;
+      }
       params.push(end_date);
     }
     if (campaign_id) {
@@ -233,9 +251,9 @@ router.get('/analytics/detailed', authenticate, async (req, res) => {
     // Calculate CTR
     const announcementsWithCTR = announcementsResult.rows.map(a => ({
       ...a,
-      views: parseInt(a.views),
-      clicks: parseInt(a.clicks),
-      unique_clicks: parseInt(a.unique_clicks),
+      views: parseInt(a.views) || 0,
+      clicks: parseInt(a.clicks) || 0,
+      unique_clicks: parseInt(a.unique_clicks) || 0,
       ctr: parseInt(a.views) > 0 ? ((parseInt(a.clicks) / parseInt(a.views)) * 100).toFixed(2) : 0
     }));
 

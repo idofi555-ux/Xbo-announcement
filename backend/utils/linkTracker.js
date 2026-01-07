@@ -1,5 +1,5 @@
 const { customAlphabet } = require('nanoid');
-const { pool } = require('../models/database');
+const { pool, USE_POSTGRES } = require('../models/database');
 
 // Generate short codes (6 chars, URL-safe)
 const generateShortCode = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 6);
@@ -95,8 +95,9 @@ const getLinkStats = async (announcementId) => {
 
 // Get click timeline for an announcement
 const getClickTimeline = async (announcementId, days = 7) => {
-  const result = await pool.query(
-    `SELECT
+  let query;
+  if (USE_POSTGRES) {
+    query = `SELECT
       DATE(lc.clicked_at) as date,
       COUNT(*) as clicks
     FROM link_clicks lc
@@ -104,9 +105,21 @@ const getClickTimeline = async (announcementId, days = 7) => {
     WHERE tl.announcement_id = $1
       AND lc.clicked_at >= NOW() - INTERVAL '${days} days'
     GROUP BY DATE(lc.clicked_at)
-    ORDER BY date`,
-    [announcementId]
-  );
+    ORDER BY date`;
+  } else {
+    // SQLite syntax
+    query = `SELECT
+      DATE(lc.clicked_at) as date,
+      COUNT(*) as clicks
+    FROM link_clicks lc
+    JOIN tracked_links tl ON lc.link_id = tl.id
+    WHERE tl.announcement_id = $1
+      AND lc.clicked_at >= datetime('now', '-${days} days')
+    GROUP BY DATE(lc.clicked_at)
+    ORDER BY date`;
+  }
+
+  const result = await pool.query(query, [announcementId]);
   return result.rows;
 };
 
