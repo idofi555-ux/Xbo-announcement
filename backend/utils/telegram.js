@@ -1,3 +1,6 @@
+// Load environment variables (fallback in case not loaded yet)
+require('dotenv').config();
+
 const TelegramBot = require('node-telegram-bot-api');
 const { pool } = require('../models/database');
 
@@ -12,35 +15,48 @@ const initBot = () => {
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
 
+  console.log('=== Bot Configuration ===');
+  console.log('TELEGRAM_BOT_TOKEN env var:', token ? 'SET' : 'NOT SET');
+
   if (!token || token === 'your-telegram-bot-token') {
     console.warn('⚠️  Telegram bot token not configured. Bot features disabled.');
+    console.warn('Set TELEGRAM_BOT_TOKEN environment variable in Railway.');
     return null;
   }
 
-  console.log('=== Bot Configuration ===');
+  console.log('Token length:', token.length);
   console.log('Token (first 10 chars):', token.substring(0, 10) + '...');
 
   try {
-    // Delete any existing webhook first, then use polling
-    // Polling is more reliable for Railway deployments
+    // Create bot instance without polling initially
     bot = new TelegramBot(token, { polling: false });
 
-    // Remove any existing webhook
-    bot.deleteWebHook().then(() => {
-      console.log('Webhook deleted, starting polling...');
-    }).catch(err => {
-      console.log('No webhook to delete or error:', err.message);
-    });
-
-    // Start polling after a short delay to ensure webhook is cleared
-    setTimeout(() => {
-      console.log('Starting Telegram bot polling...');
-      bot.startPolling({
-        restart: true,
-        onlyFirstMatch: true
+    // Delete any existing webhook first to avoid conflicts
+    console.log('Deleting any existing webhook...');
+    bot.deleteWebHook()
+      .then(() => {
+        console.log('Webhook deleted successfully');
+        // Start polling after webhook is deleted
+        startPolling();
+      })
+      .catch(err => {
+        console.error('Error deleting webhook:', err.message);
+        // Try to start polling anyway
+        startPolling();
       });
-      console.log('✅ Telegram bot polling started');
-    }, 1000);
+
+    function startPolling() {
+      console.log('Starting Telegram bot polling...');
+      try {
+        bot.startPolling({
+          restart: true,
+          onlyFirstMatch: true
+        });
+        console.log('✅ Telegram bot polling started successfully');
+      } catch (err) {
+        console.error('Failed to start polling:', err.message);
+      }
+    }
 
     // Handle polling errors
     bot.on('polling_error', (error) => {
