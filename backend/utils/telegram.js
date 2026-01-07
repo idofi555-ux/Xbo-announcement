@@ -17,64 +17,42 @@ const initBot = () => {
     return null;
   }
 
+  console.log('=== Bot Configuration ===');
+  console.log('Token (first 10 chars):', token.substring(0, 10) + '...');
+
   try {
-    const isProduction = process.env.NODE_ENV === 'production';
-    // Auto-detect webhook URL from Railway or use env var
-    const webhookUrl = process.env.WEBHOOK_URL ||
-      (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null);
+    // Delete any existing webhook first, then use polling
+    // Polling is more reliable for Railway deployments
+    bot = new TelegramBot(token, { polling: false });
 
-    console.log('=== Bot Configuration ===');
-    console.log('Production:', isProduction);
-    console.log('Webhook URL:', webhookUrl || 'NOT SET');
-    console.log('Token (first 10 chars):', token.substring(0, 10) + '...');
+    // Remove any existing webhook
+    bot.deleteWebHook().then(() => {
+      console.log('Webhook deleted, starting polling...');
+    }).catch(err => {
+      console.log('No webhook to delete or error:', err.message);
+    });
 
-    // Bot options - no polling by default
-    const botOptions = {
-      polling: false
-    };
-
-    bot = new TelegramBot(token, botOptions);
-
-    // Use webhooks in production, polling for development
-    if (isProduction && webhookUrl) {
-      // Webhook mode for production
-      const fullWebhookUrl = `${webhookUrl}/webhook/${token}`;
-      console.log('Setting up Telegram webhook...');
-      bot.setWebHook(fullWebhookUrl).then(() => {
-        console.log('✅ Telegram webhook set successfully');
-      }).catch(err => {
-        console.error('Failed to set webhook:', err.message);
-        // Fallback to polling if webhook fails
-        console.log('Falling back to polling mode...');
-        startPolling();
-      });
-      console.log('✅ Telegram bot initialized with webhook');
-    } else {
-      // Polling mode for development
-      startPolling();
-    }
-
-    function startPolling() {
-      console.log('Starting Telegram bot in polling mode...');
+    // Start polling after a short delay to ensure webhook is cleared
+    setTimeout(() => {
+      console.log('Starting Telegram bot polling...');
       bot.startPolling({
         restart: true,
         onlyFirstMatch: true
       });
+      console.log('✅ Telegram bot polling started');
+    }, 1000);
 
-      // Handle polling errors
-      bot.on('polling_error', (error) => {
-        console.error('Telegram polling error:', error.code, error.message);
-        if (error.response && error.response.body) {
-          console.error('Error details:', error.response.body);
-        }
-      });
+    // Handle polling errors
+    bot.on('polling_error', (error) => {
+      console.error('Telegram polling error:', error.code, error.message);
+      if (error.response && error.response.body) {
+        console.error('Error details:', JSON.stringify(error.response.body));
+      }
+    });
 
-      bot.on('error', (error) => {
-        console.error('Telegram bot error:', error.message);
-      });
-
-      console.log('✅ Telegram bot initialized with polling');
-    }
+    bot.on('error', (error) => {
+      console.error('Telegram bot error:', error.message);
+    });
 
     // Handle /start command
     bot.onText(/\/start/, (msg) => {
