@@ -209,17 +209,17 @@ export default function Channels() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="p-2 bg-dark-800/50 rounded-lg">
                   <Users className="w-4 h-4 text-dark-500 mx-auto mb-1" />
-                  <p className="text-lg font-semibold text-white">{channel.member_count || 0}</p>
+                  <p className="text-lg font-semibold text-slate-800">{channel.member_count || 0}</p>
                   <p className="text-xs text-dark-500">Members</p>
                 </div>
                 <div className="p-2 bg-dark-800/50 rounded-lg">
                   <Megaphone className="w-4 h-4 text-dark-500 mx-auto mb-1" />
-                  <p className="text-lg font-semibold text-white">{channel.total_announcements || 0}</p>
+                  <p className="text-lg font-semibold text-slate-800">{channel.total_announcements || 0}</p>
                   <p className="text-xs text-dark-500">Sent</p>
                 </div>
                 <div className="p-2 bg-dark-800/50 rounded-lg">
                   <Eye className="w-4 h-4 text-dark-500 mx-auto mb-1" />
-                  <p className="text-lg font-semibold text-white">{channel.total_views || 0}</p>
+                  <p className="text-lg font-semibold text-slate-800">{channel.total_views || 0}</p>
                   <p className="text-xs text-dark-500">Views</p>
                 </div>
               </div>
