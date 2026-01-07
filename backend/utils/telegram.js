@@ -171,10 +171,28 @@ const initBot = () => {
   }
 };
 
+// Check if bot is ready
+const isBotReady = () => {
+  return bot !== null && botInitialized;
+};
+
+// Get bot status for debugging
+const getBotStatus = () => {
+  return {
+    initialized: botInitialized,
+    hasBot: bot !== null,
+    token: process.env.TELEGRAM_BOT_TOKEN ? 'SET (hidden)' : 'NOT SET'
+  };
+};
+
 // Send announcement to a channel
 const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
+  console.log('=== sendAnnouncement called ===');
+  console.log('Bot status:', getBotStatus());
+
   if (!bot) {
-    throw new Error('Telegram bot not initialized');
+    const status = getBotStatus();
+    throw new Error(`Telegram bot not initialized. Token: ${status.token}`);
   }
 
   const channelResult = await pool.query(
@@ -183,10 +201,11 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
   );
 
   if (channelResult.rows.length === 0) {
-    throw new Error('Channel not found');
+    throw new Error(`Channel not found in database (id: ${channelId})`);
   }
 
   const channel = channelResult.rows[0];
+  console.log('Sending to channel:', channel.title, 'Telegram ID:', channel.telegram_id);
 
   // Replace URLs with tracked versions
   let content = announcement.content;
@@ -229,17 +248,46 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
 
   let message;
 
-  // Send with or without image
-  if (announcement.image_url) {
-    message = await bot.sendPhoto(channel.telegram_id, announcement.image_url, {
-      caption: content,
-      ...options
-    });
-  } else {
-    message = await bot.sendMessage(channel.telegram_id, content, options);
-  }
+  try {
+    // Send with or without image
+    if (announcement.image_url) {
+      console.log('Sending photo to:', channel.telegram_id);
+      message = await bot.sendPhoto(channel.telegram_id, announcement.image_url, {
+        caption: content,
+        ...options
+      });
+    } else {
+      console.log('Sending message to:', channel.telegram_id);
+      message = await bot.sendMessage(channel.telegram_id, content, options);
+    }
+    console.log('Message sent successfully, message_id:', message.message_id);
+    return message;
+  } catch (error) {
+    console.error('=== Telegram Send Error ===');
+    console.error('Channel:', channel.title, '(', channel.telegram_id, ')');
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    console.error('Response:', error.response?.body || 'No response body');
 
-  return message;
+    // Create more helpful error messages
+    let userMessage = error.message;
+    if (error.code === 'ETELEGRAM') {
+      const desc = error.response?.body?.description || error.message;
+      if (desc.includes('chat not found')) {
+        userMessage = `Chat not found. Make sure the bot is added to the channel "${channel.title}" as an admin.`;
+      } else if (desc.includes('bot was blocked')) {
+        userMessage = `Bot was blocked by the user/channel "${channel.title}".`;
+      } else if (desc.includes('not enough rights')) {
+        userMessage = `Bot doesn't have permission to post in "${channel.title}". Make sure it's an admin with post rights.`;
+      } else if (desc.includes('Forbidden')) {
+        userMessage = `Access forbidden to "${channel.title}". Add the bot as an admin.`;
+      } else {
+        userMessage = desc;
+      }
+    }
+
+    throw new Error(userMessage);
+  }
 };
 
 // Get bot instance
@@ -288,6 +336,8 @@ const stopBot = () => {
 module.exports = {
   initBot,
   getBot,
+  getBotStatus,
+  isBotReady,
   sendAnnouncement,
   updateChannelStats,
   processUpdate,

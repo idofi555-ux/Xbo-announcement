@@ -19,7 +19,7 @@ console.log('Port:', process.env.PORT || 3001);
 const { pool, initDatabase, USE_POSTGRES } = require('./models/database');
 
 // Initialize Telegram bot
-const { initBot, processUpdate, stopBot } = require('./utils/telegram');
+const { initBot, processUpdate, stopBot, getBotStatus } = require('./utils/telegram');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -113,11 +113,14 @@ app.get('/api/health', async (req, res) => {
     dbConnected = false;
   }
 
+  const botStatus = getBotStatus();
+
   res.json({
     status: dbConnected ? 'ok' : 'degraded',
     database: dbStatus,
     databaseType: USE_POSTGRES ? 'postgresql' : 'sqlite',
-    bot: bot ? 'connected' : 'not configured',
+    bot: botStatus.hasBot ? 'connected' : 'not configured',
+    botDetails: botStatus,
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString()
   });
