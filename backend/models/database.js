@@ -38,13 +38,33 @@ if (USE_POSTGRES) {
   try {
     const Database = require('better-sqlite3');
     const path = require('path');
-    const dbPath = path.join(__dirname, '../data/xbo.db');
+    const fs = require('fs');
+
+    // Use absolute path for Railway volume mount, fallback to relative path for local dev
+    let dataDir;
+    let dbPath;
+
+    if (process.env.NODE_ENV === 'production') {
+      // Railway volume is mounted at /app/backend/data
+      dataDir = '/app/backend/data';
+      dbPath = '/app/backend/data/xbo.db';
+    } else {
+      dataDir = path.join(__dirname, '../data');
+      dbPath = path.join(dataDir, 'xbo.db');
+    }
 
     // Ensure data directory exists
-    const fs = require('fs');
-    const dataDir = path.join(__dirname, '../data');
     if (!fs.existsSync(dataDir)) {
+      console.log('Creating data directory:', dataDir);
       fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    // Log directory contents to debug
+    console.log('Data directory:', dataDir);
+    console.log('Database path:', dbPath);
+    console.log('Directory exists:', fs.existsSync(dataDir));
+    if (fs.existsSync(dataDir)) {
+      console.log('Directory contents:', fs.readdirSync(dataDir));
     }
 
     db = new Database(dbPath);
