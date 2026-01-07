@@ -110,7 +110,7 @@ export default function Analytics() {
               <Eye className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-slate-800">{totalViews.toLocaleString()}</p>
+              <p className="text-2xl font-semibold text-slate-800 dark:text-white">{totalViews.toLocaleString()}</p>
               <p className="text-sm text-slate-500 dark:text-slate-400">Total Views</p>
             </div>
           </div>
@@ -121,7 +121,7 @@ export default function Analytics() {
               <MousePointerClick className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-slate-800">{totalClicks.toLocaleString()}</p>
+              <p className="text-2xl font-semibold text-slate-800 dark:text-white">{totalClicks.toLocaleString()}</p>
               <p className="text-sm text-slate-500 dark:text-slate-400">Total Clicks</p>
             </div>
           </div>
@@ -132,7 +132,7 @@ export default function Analytics() {
               <TrendingUp className="w-5 h-5 text-purple-400" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-slate-800">{avgCTR}%</p>
+              <p className="text-2xl font-semibold text-slate-800 dark:text-white">{avgCTR}%</p>
               <p className="text-sm text-slate-500 dark:text-slate-400">Avg. CTR</p>
             </div>
           </div>

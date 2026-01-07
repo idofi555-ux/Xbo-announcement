@@ -111,7 +111,7 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h1>
           <p className="text-slate-500 mt-1">Welcome back! Here's your performance overview.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -143,7 +143,7 @@ export default function Dashboard() {
                 {stat.change}
               </span>
             </div>
-            <p className="text-2xl lg:text-3xl font-bold text-slate-800">{formatNumber(stat.value)}</p>
+            <p className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white">{formatNumber(stat.value)}</p>
             <p className="text-xs lg:text-sm text-slate-500 mt-0.5">{stat.label}</p>
           </div>
         ))}
@@ -155,7 +155,7 @@ export default function Dashboard() {
         <div className="card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Performance</h2>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white">Performance</h2>
               <p className="text-sm text-slate-500">Clicks over the last 7 days</p>
             </div>
           </div>
@@ -209,7 +209,7 @@ export default function Dashboard() {
         <div className="card p-4 lg:p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Top Performing</h2>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white">Top Performing</h2>
               <p className="text-sm text-slate-500">Best announcements by clicks</p>
             </div>
             <Link to="/analytics" className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1">
@@ -228,7 +228,7 @@ export default function Dashboard() {
                     {idx + 1}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate group-hover:text-blue-600 transition-colors">
+                    <p className="text-sm font-medium text-slate-800 dark:text-white truncate group-hover:text-blue-600 transition-colors">
                       {item.title}
                     </p>
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
@@ -256,7 +256,7 @@ export default function Dashboard() {
       <div className="card overflow-hidden">
         <div className="flex items-center justify-between p-4 lg:p-6 border-b border-slate-100">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Recent Announcements</h2>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white">Recent Announcements</h2>
             <p className="text-sm text-slate-500">Track your latest campaigns</p>
           </div>
           <Link to="/announcements" className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1">
@@ -285,7 +285,7 @@ export default function Dashboard() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-800 truncate">{item.title}</p>
+                  <p className="font-medium text-slate-800 dark:text-white truncate">{item.title}</p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {item.sent_at ? format(new Date(item.sent_at), 'MMM d, h:mm a') : 'Draft'}
                   </p>
@@ -307,7 +307,7 @@ export default function Dashboard() {
         ) : (
           <div className="p-12 text-center">
             <Megaphone className="w-16 h-16 mx-auto mb-4 text-slate-200" />
-            <h3 className="text-lg font-medium text-slate-800 mb-2">No announcements yet</h3>
+            <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-2">No announcements yet</h3>
             <p className="text-slate-500 mb-4">Create your first announcement to get started</p>
             <Link 
               to="/announcements/new" 

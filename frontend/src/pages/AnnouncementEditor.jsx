@@ -309,7 +309,7 @@ export default function AnnouncementEditor() {
                       <p className="text-xs text-dark-500">/{link.short_code}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-semibold text-slate-800">{link.click_count}</p>
+                      <p className="text-lg font-semibold text-slate-800 dark:text-white">{link.click_count}</p>
                       <p className="text-xs text-dark-500">{link.unique_clicks} unique</p>
                     </div>
                   </div>
