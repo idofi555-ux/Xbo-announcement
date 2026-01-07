@@ -19,26 +19,43 @@ const initBot = () => {
 
   try {
     const isProduction = process.env.NODE_ENV === 'production';
-    const webhookUrl = process.env.WEBHOOK_URL;
+    // Auto-detect webhook URL from Railway or use env var
+    const webhookUrl = process.env.WEBHOOK_URL ||
+      (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null);
 
-    // Bot options
+    console.log('=== Bot Configuration ===');
+    console.log('Production:', isProduction);
+    console.log('Webhook URL:', webhookUrl || 'NOT SET');
+    console.log('Token (first 10 chars):', token.substring(0, 10) + '...');
+
+    // Bot options - no polling by default
     const botOptions = {
-      polling: false // Start with polling disabled
+      polling: false
     };
 
     bot = new TelegramBot(token, botOptions);
 
-    // Use webhooks in production if WEBHOOK_URL is set, otherwise use polling with error handling
+    // Use webhooks in production, polling for development
     if (isProduction && webhookUrl) {
       // Webhook mode for production
-      console.log('Setting up Telegram webhook at:', webhookUrl);
-      bot.setWebHook(`${webhookUrl}/bot${token}`);
+      const fullWebhookUrl = `${webhookUrl}/webhook/${token}`;
+      console.log('Setting up Telegram webhook...');
+      bot.setWebHook(fullWebhookUrl).then(() => {
+        console.log('✅ Telegram webhook set successfully');
+      }).catch(err => {
+        console.error('Failed to set webhook:', err.message);
+        // Fallback to polling if webhook fails
+        console.log('Falling back to polling mode...');
+        startPolling();
+      });
       console.log('✅ Telegram bot initialized with webhook');
     } else {
-      // Polling mode with error handling
-      console.log('Starting Telegram bot in polling mode...');
+      // Polling mode for development
+      startPolling();
+    }
 
-      // Start polling with error handling
+    function startPolling() {
+      console.log('Starting Telegram bot in polling mode...');
       bot.startPolling({
         restart: true,
         onlyFirstMatch: true
@@ -47,11 +64,8 @@ const initBot = () => {
       // Handle polling errors
       bot.on('polling_error', (error) => {
         console.error('Telegram polling error:', error.code, error.message);
-
-        // Don't crash on ETELEGRAM errors (e.g., conflict with another instance)
-        if (error.code === 'ETELEGRAM') {
-          console.error('Another bot instance may be running. Stopping polling...');
-          bot.stopPolling();
+        if (error.response && error.response.body) {
+          console.error('Error details:', error.response.body);
         }
       });
 

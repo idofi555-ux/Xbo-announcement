@@ -80,8 +80,9 @@ app.use('/api', analyticsRoutes);
 app.use('/t', trackerRoutes);
 
 // Telegram webhook endpoint (for production)
-app.post('/bot:token', (req, res) => {
+app.post('/webhook/:token', (req, res) => {
   try {
+    console.log('Received webhook update');
     processUpdate(req.body);
     res.sendStatus(200);
   } catch (error) {
