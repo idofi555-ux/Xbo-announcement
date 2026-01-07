@@ -219,18 +219,23 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
     try {
       const buttons = JSON.parse(announcement.buttons);
       if (buttons.length > 0) {
-        // Replace button URLs with tracked versions
-        const trackedButtons = buttons.map(btn => {
-          const trackedLink = trackedLinks.find(l => l.original_url === btn.url);
-          return {
-            text: btn.text,
-            url: trackedLink ? trackedLink.tracked_url : btn.url
-          };
-        });
+        // Replace button URLs with tracked versions, filter out invalid buttons
+        const trackedButtons = buttons
+          .filter(btn => btn.text && btn.url) // Only include buttons with both text and URL
+          .map(btn => {
+            const trackedLink = trackedLinks.find(l => l.original_url === btn.url);
+            return {
+              text: btn.text,
+              url: trackedLink ? trackedLink.tracked_url : btn.url
+            };
+          });
 
-        replyMarkup = {
-          inline_keyboard: trackedButtons.map(btn => [btn])
-        };
+        // Only add reply markup if there are valid buttons
+        if (trackedButtons.length > 0) {
+          replyMarkup = {
+            inline_keyboard: trackedButtons.map(btn => [btn])
+          };
+        }
       }
     } catch (e) {
       console.error('Error parsing buttons:', e);

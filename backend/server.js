@@ -144,11 +144,13 @@ cron.schedule('* * * * *', async () => {
   if (!dbConnected) return;
 
   try {
+    // Use database-specific date function
+    const dateFunc = USE_POSTGRES ? 'NOW()' : "datetime('now')";
     const result = await pool.query(`
       SELECT a.*
       FROM announcements a
       WHERE a.status = 'scheduled'
-        AND a.scheduled_at <= NOW()
+        AND a.scheduled_at <= ${dateFunc}
     `);
 
     for (const announcement of result.rows) {
