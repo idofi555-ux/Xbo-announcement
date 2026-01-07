@@ -6,5 +6,9 @@ startCommand = "cd backend && npm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 100
 
+[[mounts]]
+source = "xbo_data"
+destination = "/app/backend/data"
+
 [env]
 NODE_ENV = "production"
