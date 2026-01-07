@@ -229,33 +229,38 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
 
   // Parse buttons if any
   let replyMarkup = null;
-  if (announcement.buttons) {
+  if (announcement.buttons && announcement.buttons !== '[]' && announcement.buttons !== 'null') {
     try {
       console.log('Raw buttons from DB:', announcement.buttons);
       const buttons = JSON.parse(announcement.buttons);
       console.log('Parsed buttons:', JSON.stringify(buttons));
 
       if (Array.isArray(buttons) && buttons.length > 0) {
-        // Replace button URLs with tracked versions, filter out invalid buttons
-        const trackedButtons = buttons
-          .filter(btn => {
-            const hasText = btn.text && btn.text.trim().length > 0;
-            const hasUrl = btn.url && btn.url.trim().length > 0;
-            console.log(`Button check: text="${btn.text}" url="${btn.url}" valid=${hasText && hasUrl}`);
-            return hasText && hasUrl;
-          })
-          .map(btn => {
+        // Filter out invalid buttons - must have non-empty text AND valid URL
+        const validButtons = buttons.filter(btn => {
+          // Check text exists and is not empty
+          const text = btn && btn.text ? String(btn.text).trim() : '';
+          // Check URL exists, is not empty, and looks like a URL
+          const url = btn && btn.url ? String(btn.url).trim() : '';
+          const hasValidText = text.length > 0;
+          const hasValidUrl = url.length > 0 && (url.startsWith('http://') || url.startsWith('https://'));
+
+          console.log(`Button check: text="${text}" url="${url}" hasValidText=${hasValidText} hasValidUrl=${hasValidUrl}`);
+          return hasValidText && hasValidUrl;
+        });
+
+        console.log('Valid buttons count:', validButtons.length);
+
+        // Only add reply markup if there are valid buttons
+        if (validButtons.length > 0) {
+          const trackedButtons = validButtons.map(btn => {
             const trackedLink = trackedLinks.find(l => l.original_url === btn.url);
             return {
-              text: btn.text.trim(),
-              url: trackedLink ? trackedLink.tracked_url : btn.url.trim()
+              text: String(btn.text).trim(),
+              url: trackedLink ? trackedLink.tracked_url : String(btn.url).trim()
             };
           });
 
-        console.log('Filtered buttons:', JSON.stringify(trackedButtons));
-
-        // Only add reply markup if there are valid buttons
-        if (trackedButtons.length > 0) {
           replyMarkup = {
             inline_keyboard: trackedButtons.map(btn => [btn])
           };
