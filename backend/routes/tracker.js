@@ -69,23 +69,21 @@ router.get('/pixel/:announcementId/:channelId', async (req, res) => {
 
 // Redirect tracked links
 router.get('/:code', async (req, res) => {
-  try {
-    const { code } = req.params;
+  const { code } = req.params;
 
+  console.log(`[TRACKER] Link redirect request for code: ${code}`);
+
+  try {
+    // Find the link
     const linkResult = await pool.query('SELECT * FROM tracked_links WHERE short_code = $1', [code]);
 
     if (linkResult.rows.length === 0) {
+      console.log(`[TRACKER] Link not found: ${code}`);
       return res.status(404).send('Link not found');
     }
 
     const link = linkResult.rows[0];
-
-    // Record the click with proper IP extraction
-    await recordClick(code, {
-      ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.connection?.remoteAddress,
-      userAgent: req.headers['user-agent'],
-      referer: req.headers['referer']
-    });
+    console.log(`[TRACKER] Found link: ${link.original_url}`);
 
     // Build redirect URL with UTM params if not already present
     let redirectUrl = link.original_url;
@@ -107,11 +105,29 @@ router.get('/:code', async (req, res) => {
       redirectUrl = url.toString();
     } catch (e) {
       // If URL parsing fails, just use original
+      console.log(`[TRACKER] URL parsing failed, using original: ${redirectUrl}`);
     }
 
+    // Redirect FIRST, then track asynchronously (don't block redirect)
     res.redirect(302, redirectUrl);
+    console.log(`[TRACKER] Redirected to: ${redirectUrl}`);
+
+    // Record the click asynchronously AFTER redirect
+    (async () => {
+      try {
+        await recordClick(code, {
+          ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.connection?.remoteAddress,
+          userAgent: req.headers['user-agent'],
+          referer: req.headers['referer']
+        });
+        console.log(`[TRACKER] Click recorded for: ${code}`);
+      } catch (trackError) {
+        console.error(`[TRACKER] Click tracking error (non-blocking):`, trackError.message);
+      }
+    })();
+
   } catch (error) {
-    console.error('Redirect error:', error);
+    console.error('[TRACKER] Redirect error:', error.message);
     res.status(500).send('Error processing link');
   }
 });

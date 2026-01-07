@@ -53,34 +53,48 @@ const processContentLinks = async (content, announcementId, campaignName = null)
 
 // Record a click with geolocation and device data
 const recordClick = async (shortCode, requestInfo = {}) => {
-  const linkResult = await pool.query(
-    'SELECT id FROM tracked_links WHERE short_code = $1',
-    [shortCode]
-  );
+  try {
+    const linkResult = await pool.query(
+      'SELECT id FROM tracked_links WHERE short_code = $1',
+      [shortCode]
+    );
 
-  if (linkResult.rows.length === 0) return null;
+    if (linkResult.rows.length === 0) {
+      console.log(`[recordClick] Link not found for code: ${shortCode}`);
+      return null;
+    }
 
-  const link = linkResult.rows[0];
+    const link = linkResult.rows[0];
 
-  // Get geolocation and device data
-  const trackingData = await getTrackingData(requestInfo.ip, requestInfo.userAgent);
+    // Get geolocation and device data (with timeout protection)
+    let trackingData = { country: 'Unknown', city: 'Unknown', deviceType: 'unknown', browser: 'unknown' };
+    try {
+      trackingData = await getTrackingData(requestInfo.ip, requestInfo.userAgent);
+    } catch (geoError) {
+      console.error(`[recordClick] Geolocation error (using defaults):`, geoError.message);
+    }
 
-  await pool.query(
-    `INSERT INTO link_clicks (link_id, ip_address, user_agent, referer, country, city, device_type, browser)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [
-      link.id,
-      requestInfo.ip || null,
-      requestInfo.userAgent || null,
-      requestInfo.referer || null,
-      trackingData.country,
-      trackingData.city,
-      trackingData.deviceType,
-      trackingData.browser
-    ]
-  );
+    await pool.query(
+      `INSERT INTO link_clicks (link_id, ip_address, user_agent, referer, country, city, device_type, browser)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        link.id,
+        requestInfo.ip || null,
+        requestInfo.userAgent || null,
+        requestInfo.referer || null,
+        trackingData.country,
+        trackingData.city,
+        trackingData.deviceType,
+        trackingData.browser
+      ]
+    );
 
-  return link;
+    console.log(`[recordClick] Click recorded for link_id: ${link.id}`);
+    return link;
+  } catch (error) {
+    console.error(`[recordClick] Error recording click:`, error.message);
+    throw error;
+  }
 };
 
 // Get link statistics
@@ -111,7 +125,7 @@ const getClickTimeline = async (announcementId, days = 7) => {
     FROM link_clicks lc
     JOIN tracked_links tl ON lc.link_id = tl.id
     WHERE tl.announcement_id = $1
-      AND lc.clicked_at >= NOW() - INTERVAL '${days} days'
+      AND lc.clicked_at >= CURRENT_TIMESTAMP - INTERVAL '${days} days'
     GROUP BY DATE(lc.clicked_at)
     ORDER BY date`;
   } else {
