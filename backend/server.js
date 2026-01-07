@@ -1,3 +1,4 @@
+// Load environment variables FIRST
 require('dotenv').config();
 
 const express = require('express');
@@ -7,11 +8,18 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const cron = require('node-cron');
 
+// Log startup info
+console.log('=== XBO Announcements Server Starting ===');
+console.log('Time:', new Date().toISOString());
+console.log('Node version:', process.version);
+console.log('Environment:', process.env.NODE_ENV || 'development');
+console.log('Port:', process.env.PORT || 3001);
+
 // Initialize database
-const { pool, initDatabase } = require('./models/database');
+const { pool, initDatabase, USE_POSTGRES } = require('./models/database');
 
 // Initialize Telegram bot
-const { initBot } = require('./utils/telegram');
+const { initBot, processUpdate, stopBot } = require('./utils/telegram');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -30,15 +38,28 @@ app.use(helmet({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: { error: 'Too many requests, please try again later' }
 });
 app.use('/api/', limiter);
 
-// CORS
+// CORS - allow multiple origins
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://xbo-announcement.up.railway.app'
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins in production for now
+    }
+  },
   credentials: true
 }));
 
@@ -58,46 +79,67 @@ app.use('/api', analyticsRoutes);
 // Link tracker (short URLs)
 app.use('/t', trackerRoutes);
 
+// Telegram webhook endpoint (for production)
+app.post('/bot:token', (req, res) => {
+  try {
+    processUpdate(req.body);
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.sendStatus(500);
+  }
+});
+
 // Health check
 let bot = null;
 let dbConnected = false;
+
 app.get('/api/health', async (req, res) => {
-  // Quick DB check
   let dbStatus = 'unknown';
-  if (process.env.DATABASE_URL) {
-    try {
+
+  try {
+    if (USE_POSTGRES) {
       await pool.query('SELECT 1');
-      dbStatus = 'connected';
+      dbStatus = 'postgresql: connected';
       dbConnected = true;
-    } catch (err) {
-      dbStatus = 'error: ' + err.message;
-      dbConnected = false;
+    } else {
+      // SQLite check
+      await pool.query('SELECT 1');
+      dbStatus = 'sqlite: connected';
+      dbConnected = true;
     }
-  } else {
-    dbStatus = 'not configured (DATABASE_URL missing)';
+  } catch (err) {
+    dbStatus = 'error: ' + err.message;
+    dbConnected = false;
   }
 
   res.json({
     status: dbConnected ? 'ok' : 'degraded',
     database: dbStatus,
+    databaseType: USE_POSTGRES ? 'postgresql' : 'sqlite',
     bot: bot ? 'connected' : 'not configured',
+    environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString()
   });
 });
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+  const staticPath = path.join(__dirname, '../frontend/dist');
+  console.log('Serving static files from:', staticPath);
+  app.use(express.static(staticPath));
 
   app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api') && !req.path.startsWith('/t/')) {
-      res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/t/') && !req.path.startsWith('/bot')) {
+      res.sendFile(path.join(staticPath, 'index.html'));
     }
   });
 }
 
 // Scheduled announcements cron job (runs every minute)
 cron.schedule('* * * * *', async () => {
+  if (!dbConnected) return;
+
   try {
     const result = await pool.query(`
       SELECT a.*
@@ -107,37 +149,63 @@ cron.schedule('* * * * *', async () => {
     `);
 
     for (const announcement of result.rows) {
-      console.log(`Sending scheduled announcement: ${announcement.title}`);
+      console.log(`Processing scheduled announcement: ${announcement.title}`);
 
-      // Update status
       await pool.query(
         `UPDATE announcements SET status = 'sent', sent_at = CURRENT_TIMESTAMP WHERE id = $1`,
         [announcement.id]
       );
     }
   } catch (error) {
-    console.error('Cron job error:', error);
+    console.error('Cron job error:', error.message);
   }
 });
 
-// Error handling
+// Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
+  console.error('=== Server Error ===');
+  console.error('Path:', req.path);
+  console.error('Method:', req.method);
+  console.error('Error:', err.message);
+  console.error('Stack:', err.stack);
   res.status(500).json({ error: 'Internal server error' });
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  stopBot();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  stopBot();
+  process.exit(0);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('=== Uncaught Exception ===');
+  console.error(err);
+  // Don't exit - try to keep running
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('=== Unhandled Rejection ===');
+  console.error('Reason:', reason);
+  // Don't exit - try to keep running
 });
 
 // Start server
 const startServer = async () => {
-  console.log('Starting XBO Announcements Server...');
-  console.log('Environment:', process.env.NODE_ENV || 'development');
-  console.log('Port:', PORT);
-  console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'set' : 'NOT SET');
-  console.log('TELEGRAM_BOT_TOKEN:', process.env.TELEGRAM_BOT_TOKEN ? 'set' : 'NOT SET');
+  console.log('\n=== Initializing Services ===');
 
-  // Initialize database (don't fail if it doesn't work)
+  // Initialize database
   try {
     await initDatabase();
     dbConnected = true;
+    console.log('Database: Ready');
   } catch (error) {
     console.error('Database initialization failed:', error.message);
     console.error('Server will start but database features will not work.');
@@ -147,6 +215,7 @@ const startServer = async () => {
   // Initialize Telegram bot
   try {
     bot = initBot();
+    console.log('Telegram bot:', bot ? 'Ready' : 'Not configured');
   } catch (error) {
     console.error('Telegram bot initialization failed:', error.message);
   }
@@ -158,12 +227,15 @@ const startServer = async () => {
 ║                                                           ║
 ║   🚀 XBO Announcements Server                             ║
 ║                                                           ║
-║   Server:    http://0.0.0.0:${PORT}                        ║
-║   API:       http://0.0.0.0:${PORT}/api                    ║
-║   Health:    http://0.0.0.0:${PORT}/api/health             ║
+║   URL:        http://0.0.0.0:${PORT}                        ║
+║   Health:     http://0.0.0.0:${PORT}/api/health             ║
 ║                                                           ║
-║   Database:  ${dbConnected ? '✅ Connected' : '❌ Not connected'}                        ║
-║   Bot:       ${bot ? '✅ Connected' : '⚠️  Not configured'}                        ║
+║   Database:   ${dbConnected ? '✅ Connected (' + (USE_POSTGRES ? 'PostgreSQL' : 'SQLite') + ')' : '❌ Not connected'}${dbConnected ? '' : '          '}
+║   Bot:        ${bot ? '✅ Connected' : '⚠️  Not configured'}                        ║
+║                                                           ║
+║   Default Login:                                          ║
+║   Email:      admin@xbo.com                               ║
+║   Password:   admin123                                    ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
     `);

@@ -2,8 +2,14 @@ const TelegramBot = require('node-telegram-bot-api');
 const { pool } = require('../models/database');
 
 let bot = null;
+let botInitialized = false;
 
 const initBot = () => {
+  if (botInitialized) {
+    console.log('Telegram bot already initialized, skipping...');
+    return bot;
+  }
+
   const token = process.env.TELEGRAM_BOT_TOKEN;
 
   if (!token || token === 'your-telegram-bot-token') {
@@ -12,7 +18,49 @@ const initBot = () => {
   }
 
   try {
-    bot = new TelegramBot(token, { polling: true });
+    const isProduction = process.env.NODE_ENV === 'production';
+    const webhookUrl = process.env.WEBHOOK_URL;
+
+    // Bot options
+    const botOptions = {
+      polling: false // Start with polling disabled
+    };
+
+    bot = new TelegramBot(token, botOptions);
+
+    // Use webhooks in production if WEBHOOK_URL is set, otherwise use polling with error handling
+    if (isProduction && webhookUrl) {
+      // Webhook mode for production
+      console.log('Setting up Telegram webhook at:', webhookUrl);
+      bot.setWebHook(`${webhookUrl}/bot${token}`);
+      console.log('✅ Telegram bot initialized with webhook');
+    } else {
+      // Polling mode with error handling
+      console.log('Starting Telegram bot in polling mode...');
+
+      // Start polling with error handling
+      bot.startPolling({
+        restart: true,
+        onlyFirstMatch: true
+      });
+
+      // Handle polling errors
+      bot.on('polling_error', (error) => {
+        console.error('Telegram polling error:', error.code, error.message);
+
+        // Don't crash on ETELEGRAM errors (e.g., conflict with another instance)
+        if (error.code === 'ETELEGRAM') {
+          console.error('Another bot instance may be running. Stopping polling...');
+          bot.stopPolling();
+        }
+      });
+
+      bot.on('error', (error) => {
+        console.error('Telegram bot error:', error.message);
+      });
+
+      console.log('✅ Telegram bot initialized with polling');
+    }
 
     // Handle /start command
     bot.onText(/\/start/, (msg) => {
@@ -24,7 +72,7 @@ const initBot = () => {
         `2. Use /register to register this chat\n\n` +
         `Chat ID: \`${chatId}\``,
         { parse_mode: 'Markdown' }
-      );
+      ).catch(err => console.error('Error sending start message:', err.message));
     });
 
     // Handle /register command
@@ -48,7 +96,7 @@ const initBot = () => {
         try {
           memberCount = await bot.getChatMemberCount(chat.id);
         } catch (e) {
-          // Ignore errors getting member count
+          console.log('Could not get member count:', e.message);
         }
 
         // Register the channel
@@ -115,10 +163,10 @@ const initBot = () => {
       }
     });
 
-    console.log('✅ Telegram bot initialized');
+    botInitialized = true;
     return bot;
   } catch (error) {
-    console.error('Failed to initialize Telegram bot:', error);
+    console.error('Failed to initialize Telegram bot:', error.message);
     return null;
   }
 };
@@ -217,7 +265,23 @@ const updateChannelStats = async (channelId) => {
       [count, channelId]
     );
   } catch (error) {
-    console.error('Error updating channel stats:', error);
+    console.error('Error updating channel stats:', error.message);
+  }
+};
+
+// Process webhook update (for production)
+const processUpdate = (update) => {
+  if (bot) {
+    bot.processUpdate(update);
+  }
+};
+
+// Stop bot polling (cleanup)
+const stopBot = () => {
+  if (bot && botInitialized) {
+    bot.stopPolling();
+    botInitialized = false;
+    console.log('Telegram bot stopped');
   }
 };
 
@@ -225,5 +289,7 @@ module.exports = {
   initBot,
   getBot,
   sendAnnouncement,
-  updateChannelStats
+  updateChannelStats,
+  processUpdate,
+  stopBot
 };
