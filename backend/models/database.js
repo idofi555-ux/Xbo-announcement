@@ -1,16 +1,38 @@
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
+// Check if DATABASE_URL is set
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL environment variable is not set!');
+  console.error('Please add a PostgreSQL database to your Railway project.');
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 30000,
+  max: 10
+});
+
+// Handle pool errors
+pool.on('error', (err) => {
+  console.error('Unexpected PostgreSQL pool error:', err);
 });
 
 // Initialize database tables
 const initDatabase = async () => {
-  const client = await pool.connect();
+  if (!process.env.DATABASE_URL) {
+    console.error('❌ Skipping database initialization - DATABASE_URL not set');
+    return;
+  }
 
+  let client;
   try {
+    console.log('Connecting to PostgreSQL...');
+    client = await pool.connect();
+    console.log('✅ Connected to PostgreSQL');
+
     await client.query(`
       -- Users table
       CREATE TABLE IF NOT EXISTS users (
@@ -130,7 +152,9 @@ const initDatabase = async () => {
     console.error('Database initialization error:', error);
     throw error;
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 };
 

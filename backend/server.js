@@ -60,9 +60,26 @@ app.use('/t', trackerRoutes);
 
 // Health check
 let bot = null;
-app.get('/api/health', (req, res) => {
+let dbConnected = false;
+app.get('/api/health', async (req, res) => {
+  // Quick DB check
+  let dbStatus = 'unknown';
+  if (process.env.DATABASE_URL) {
+    try {
+      await pool.query('SELECT 1');
+      dbStatus = 'connected';
+      dbConnected = true;
+    } catch (err) {
+      dbStatus = 'error: ' + err.message;
+      dbConnected = false;
+    }
+  } else {
+    dbStatus = 'not configured (DATABASE_URL missing)';
+  }
+
   res.json({
-    status: 'ok',
+    status: dbConnected ? 'ok' : 'degraded',
+    database: dbStatus,
     bot: bot ? 'connected' : 'not configured',
     timestamp: new Date().toISOString()
   });
@@ -111,36 +128,46 @@ app.use((err, req, res, next) => {
 
 // Start server
 const startServer = async () => {
+  console.log('Starting XBO Announcements Server...');
+  console.log('Environment:', process.env.NODE_ENV || 'development');
+  console.log('Port:', PORT);
+  console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'set' : 'NOT SET');
+  console.log('TELEGRAM_BOT_TOKEN:', process.env.TELEGRAM_BOT_TOKEN ? 'set' : 'NOT SET');
+
+  // Initialize database (don't fail if it doesn't work)
   try {
-    // Initialize database
     await initDatabase();
+    dbConnected = true;
+  } catch (error) {
+    console.error('Database initialization failed:', error.message);
+    console.error('Server will start but database features will not work.');
+    dbConnected = false;
+  }
 
-    // Initialize Telegram bot
+  // Initialize Telegram bot
+  try {
     bot = initBot();
+  } catch (error) {
+    console.error('Telegram bot initialization failed:', error.message);
+  }
 
-    app.listen(PORT, () => {
-      console.log(`
+  // Start HTTP server
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   🚀 XBO Announcements Server                             ║
 ║                                                           ║
-║   Server:    http://localhost:${PORT}                      ║
-║   API:       http://localhost:${PORT}/api                  ║
-║   Tracker:   http://localhost:${PORT}/t/{code}             ║
+║   Server:    http://0.0.0.0:${PORT}                        ║
+║   API:       http://0.0.0.0:${PORT}/api                    ║
+║   Health:    http://0.0.0.0:${PORT}/api/health             ║
 ║                                                           ║
-║   Bot Status: ${bot ? '✅ Connected' : '⚠️  Not configured'}                        ║
-║                                                           ║
-║   Default Login:                                          ║
-║   Email:    admin@xbo.com                                 ║
-║   Password: admin123                                      ║
+║   Database:  ${dbConnected ? '✅ Connected' : '❌ Not connected'}                        ║
+║   Bot:       ${bot ? '✅ Connected' : '⚠️  Not configured'}                        ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
-      `);
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
+    `);
+  });
 };
 
 startServer();
