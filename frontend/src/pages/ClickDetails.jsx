@@ -3,10 +3,10 @@ import { getClickDetails, getViewDetails, getButtonClicks, getAggregatedAnalytic
 import {
   MousePointerClick, Eye, Users, Globe, Smartphone, Monitor,
   Tablet, Clock, Download, Calendar, ChevronLeft, ChevronRight,
-  AtSign
+  AtSign, TrendingUp, UserCheck, Activity
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { format, subDays } from 'date-fns';
+import { format, subDays, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
@@ -20,11 +20,13 @@ const DeviceIcon = ({ type }) => {
 };
 
 export default function ClickDetails() {
-  const [activeTab, setActiveTab] = useState('clicks');
+  const [activeTab, setActiveTab] = useState('users');
   const [data, setData] = useState({ clicks: [], views: [], buttonClicks: [] });
   const [aggregated, setAggregated] = useState(null);
+  const [summaryStats, setSummaryStats] = useState({ uniqueUsers: 0, clicksToday: 0, mostActiveUser: null });
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({ total: 0, limit: 50, offset: 0 });
   const [filters, setFilters] = useState({
     start_date: format(subDays(new Date(), 29), 'yyyy-MM-dd'),
@@ -52,6 +54,7 @@ export default function ClickDetails() {
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = {
         ...filters,
@@ -61,19 +64,42 @@ export default function ClickDetails() {
 
       if (activeTab === 'clicks') {
         const { data } = await getClickDetails(params);
-        setData(prev => ({ ...prev, clicks: data.clicks }));
-        setPagination(prev => ({ ...prev, total: data.total }));
+        setData(prev => ({ ...prev, clicks: data.clicks || [] }));
+        setPagination(prev => ({ ...prev, total: data.total || 0 }));
       } else if (activeTab === 'views') {
         const { data } = await getViewDetails(params);
-        setData(prev => ({ ...prev, views: data.views }));
-        setPagination(prev => ({ ...prev, total: data.total }));
+        setData(prev => ({ ...prev, views: data.views || [] }));
+        setPagination(prev => ({ ...prev, total: data.total || 0 }));
       } else if (activeTab === 'users') {
         const { data } = await getButtonClicks(params);
-        setData(prev => ({ ...prev, buttonClicks: data.buttonClicks }));
-        setPagination(prev => ({ ...prev, total: data.total }));
+        const buttonClicks = data.buttonClicks || [];
+        setData(prev => ({ ...prev, buttonClicks }));
+        setPagination(prev => ({ ...prev, total: data.total || 0 }));
+
+        // Calculate summary stats
+        const uniqueUserIds = new Set(buttonClicks.map(c => c.telegram_user_id));
+        const todayClicks = buttonClicks.filter(c => c.clicked_at && isToday(new Date(c.clicked_at)));
+
+        // Find most active user
+        const userCounts = {};
+        buttonClicks.forEach(c => {
+          const key = c.telegram_user_id;
+          if (!userCounts[key]) {
+            userCounts[key] = { count: 0, name: c.telegram_first_name, username: c.telegram_username };
+          }
+          userCounts[key].count++;
+        });
+        const mostActive = Object.entries(userCounts).sort((a, b) => b[1].count - a[1].count)[0];
+
+        setSummaryStats({
+          uniqueUsers: uniqueUserIds.size,
+          clicksToday: todayClicks.length,
+          mostActiveUser: mostActive ? { ...mostActive[1], id: mostActive[0] } : null
+        });
       }
     } catch (error) {
-      toast.error('Failed to load data');
+      console.error('Failed to load data:', error);
+      setError('Failed to load data. The database tables may be updating - please try again.');
     } finally {
       setLoading(false);
     }
@@ -114,9 +140,9 @@ export default function ClickDetails() {
   };
 
   const tabs = [
+    { id: 'users', label: 'Telegram Users', icon: Users },
     { id: 'clicks', label: 'Link Clicks', icon: MousePointerClick },
-    { id: 'views', label: 'Pixel Views', icon: Eye },
-    { id: 'users', label: 'Telegram Users', icon: Users }
+    { id: 'views', label: 'Pixel Views', icon: Eye }
   ];
 
   return (
@@ -133,6 +159,56 @@ export default function ClickDetails() {
           <Download className="w-4 h-4" />
           Export CSV
         </button>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="card p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+              <UserCheck className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-slate-800 dark:text-white">{summaryStats.uniqueUsers}</p>
+              <p className="text-xs text-slate-500">Unique Users</p>
+            </div>
+          </div>
+        </div>
+        <div className="card p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-green-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-slate-800 dark:text-white">{summaryStats.clicksToday}</p>
+              <p className="text-xs text-slate-500">Clicks Today</p>
+            </div>
+          </div>
+        </div>
+        <div className="card p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+              <Activity className="w-5 h-5 text-purple-500" />
+            </div>
+            <div>
+              {summaryStats.mostActiveUser ? (
+                <>
+                  <p className="text-lg font-bold text-slate-800 dark:text-white truncate">
+                    {summaryStats.mostActiveUser.name || 'Unknown'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Most Active ({summaryStats.mostActiveUser.count} clicks)
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-bold text-slate-500">-</p>
+                  <p className="text-xs text-slate-500">Most Active User</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -159,7 +235,7 @@ export default function ClickDetails() {
             onChange={(e) => setFilters(prev => ({ ...prev, announcement_id: e.target.value }))}
             className="input py-1.5 w-auto"
           >
-            <option value="">All Announcements</option>
+            <option value="">All Messages</option>
             {announcements.map(a => (
               <option key={a.id} value={a.id}>{a.title}</option>
             ))}
@@ -176,7 +252,7 @@ export default function ClickDetails() {
               <Globe className="w-4 h-4" />
               Clicks by Country
             </h3>
-            {aggregated.clicks.byCountry.length > 0 ? (
+            {aggregated.clicks?.byCountry?.length > 0 ? (
               <ResponsiveContainer width="100%" height={150}>
                 <PieChart>
                   <Pie
@@ -202,7 +278,7 @@ export default function ClickDetails() {
               <div className="h-[150px] flex items-center justify-center text-slate-500 text-sm">No data</div>
             )}
             <div className="mt-2 space-y-1">
-              {aggregated.clicks.byCountry.slice(0, 5).map((item, idx) => (
+              {aggregated.clicks?.byCountry?.slice(0, 5).map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
@@ -220,7 +296,7 @@ export default function ClickDetails() {
               <Smartphone className="w-4 h-4" />
               Clicks by Device
             </h3>
-            {aggregated.clicks.byDevice.length > 0 ? (
+            {aggregated.clicks?.byDevice?.length > 0 ? (
               <ResponsiveContainer width="100%" height={150}>
                 <BarChart data={aggregated.clicks.byDevice} layout="vertical">
                   <XAxis type="number" hide />
@@ -242,7 +318,7 @@ export default function ClickDetails() {
               <Globe className="w-4 h-4" />
               Clicks by Browser
             </h3>
-            {aggregated.clicks.byBrowser.length > 0 ? (
+            {aggregated.clicks?.byBrowser?.length > 0 ? (
               <ResponsiveContainer width="100%" height={150}>
                 <BarChart data={aggregated.clicks.byBrowser.slice(0, 5)} layout="vertical">
                   <XAxis type="number" hide />
@@ -264,7 +340,7 @@ export default function ClickDetails() {
               <Clock className="w-4 h-4" />
               Clicks by Hour
             </h3>
-            {aggregated.clicks.byHour.length > 0 ? (
+            {aggregated.clicks?.byHour?.length > 0 ? (
               <ResponsiveContainer width="100%" height={150}>
                 <BarChart data={aggregated.clicks.byHour}>
                   <XAxis dataKey="hour" tick={{ fontSize: 10 }} tickFormatter={(h) => `${h}:00`} />
@@ -307,147 +383,32 @@ export default function ClickDetails() {
           </div>
         </div>
 
-        {loading ? (
+        {error ? (
+          <div className="p-8 text-center">
+            <p className="text-red-500 mb-2">{error}</p>
+            <button onClick={loadData} className="btn btn-secondary">Try Again</button>
+          </div>
+        ) : loading ? (
           <div className="p-8 text-center text-slate-500">Loading...</div>
         ) : (
           <>
-            {/* Link Clicks Table */}
-            {activeTab === 'clicks' && (
-              <div className="overflow-x-auto">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>IP / User</th>
-                      <th>Location</th>
-                      <th>Device</th>
-                      <th>Browser</th>
-                      <th>Link</th>
-                      <th>Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.clicks.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="text-center text-slate-500 py-8">No click data found</td>
-                      </tr>
-                    ) : (
-                      data.clicks.map((click) => (
-                        <tr key={click.id}>
-                          <td>
-                            <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
-                              {click.ip_address || 'Unknown'}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="flex items-center gap-1">
-                              <Globe className="w-3 h-3 text-slate-400" />
-                              <span className="text-slate-700 dark:text-slate-300">{click.country || 'Unknown'}</span>
-                              {click.city && click.city !== 'Unknown' && (
-                                <span className="text-slate-500">, {click.city}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            <div className="flex items-center gap-1.5">
-                              <DeviceIcon type={click.device_type} />
-                              <span className="capitalize text-slate-700 dark:text-slate-300">{click.device_type || 'Unknown'}</span>
-                            </div>
-                          </td>
-                          <td className="text-slate-600 dark:text-slate-400">{click.browser || 'Unknown'}</td>
-                          <td>
-                            <a
-                              href={click.original_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-500 hover:underline truncate max-w-[200px] block"
-                              title={click.original_url}
-                            >
-                              {click.original_url?.substring(0, 30)}...
-                            </a>
-                          </td>
-                          <td className="text-slate-500 text-sm whitespace-nowrap">
-                            {click.clicked_at ? format(new Date(click.clicked_at), 'MMM d, h:mm a') : '-'}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Pixel Views Table */}
-            {activeTab === 'views' && (
-              <div className="overflow-x-auto">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>IP / User</th>
-                      <th>Location</th>
-                      <th>Device</th>
-                      <th>Browser</th>
-                      <th>Channel</th>
-                      <th>Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.views.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="text-center text-slate-500 py-8">No view data found</td>
-                      </tr>
-                    ) : (
-                      data.views.map((view) => (
-                        <tr key={view.id}>
-                          <td>
-                            <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
-                              {view.ip_address || 'Unknown'}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="flex items-center gap-1">
-                              <Globe className="w-3 h-3 text-slate-400" />
-                              <span className="text-slate-700 dark:text-slate-300">{view.country || 'Unknown'}</span>
-                              {view.city && view.city !== 'Unknown' && (
-                                <span className="text-slate-500">, {view.city}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            <div className="flex items-center gap-1.5">
-                              <DeviceIcon type={view.device_type} />
-                              <span className="capitalize text-slate-700 dark:text-slate-300">{view.device_type || 'Unknown'}</span>
-                            </div>
-                          </td>
-                          <td className="text-slate-600 dark:text-slate-400">{view.browser || 'Unknown'}</td>
-                          <td className="text-slate-700 dark:text-slate-300">{view.channel_title || '-'}</td>
-                          <td className="text-slate-500 text-sm whitespace-nowrap">
-                            {view.viewed_at ? format(new Date(view.viewed_at), 'MMM d, h:mm a') : '-'}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
             {/* Telegram Users Table */}
             {activeTab === 'users' && (
               <div className="overflow-x-auto">
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Telegram User</th>
-                      <th>Username</th>
-                      <th>Button</th>
-                      <th>Announcement</th>
-                      <th>Time</th>
+                      <th>User</th>
+                      <th>Telegram</th>
+                      <th>Action</th>
+                      <th>Message</th>
+                      <th>Date & Time</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.buttonClicks.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center text-slate-500 py-8">No button click data found</td>
+                        <td colSpan={5} className="text-center text-slate-500 py-8">No user data found</td>
                       </tr>
                     ) : (
                       data.buttonClicks.map((click) => (
@@ -483,9 +444,133 @@ export default function ClickDetails() {
                           <td>
                             <span className="badge badge-info">{click.button_text}</span>
                           </td>
-                          <td className="text-slate-700 dark:text-slate-300">{click.announcement_title || '-'}</td>
+                          <td className="text-slate-700 dark:text-slate-300 max-w-[200px] truncate">
+                            {click.announcement_title || '-'}
+                          </td>
                           <td className="text-slate-500 text-sm whitespace-nowrap">
-                            {click.clicked_at ? format(new Date(click.clicked_at), 'MMM d, h:mm a') : '-'}
+                            {click.clicked_at ? format(new Date(click.clicked_at), 'MMM d, yyyy h:mm a') : '-'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Link Clicks Table */}
+            {activeTab === 'clicks' && (
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>IP Address</th>
+                      <th>Location</th>
+                      <th>Device</th>
+                      <th>Browser</th>
+                      <th>Link</th>
+                      <th>Date & Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.clicks.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center text-slate-500 py-8">No click data found</td>
+                      </tr>
+                    ) : (
+                      data.clicks.map((click) => (
+                        <tr key={click.id}>
+                          <td>
+                            <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
+                              {click.ip_address || 'Unknown'}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-1">
+                              <Globe className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700 dark:text-slate-300">{click.country || 'Unknown'}</span>
+                              {click.city && click.city !== 'Unknown' && (
+                                <span className="text-slate-500">, {click.city}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-1.5">
+                              <DeviceIcon type={click.device_type} />
+                              <span className="capitalize text-slate-700 dark:text-slate-300">{click.device_type || 'Unknown'}</span>
+                            </div>
+                          </td>
+                          <td className="text-slate-600 dark:text-slate-400">{click.browser || 'Unknown'}</td>
+                          <td>
+                            {click.original_url ? (
+                              <a
+                                href={click.original_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-500 hover:underline truncate max-w-[200px] block"
+                                title={click.original_url}
+                              >
+                                {click.original_url.length > 30 ? click.original_url.substring(0, 30) + '...' : click.original_url}
+                              </a>
+                            ) : '-'}
+                          </td>
+                          <td className="text-slate-500 text-sm whitespace-nowrap">
+                            {click.clicked_at ? format(new Date(click.clicked_at), 'MMM d, yyyy h:mm a') : '-'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pixel Views Table */}
+            {activeTab === 'views' && (
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>IP Address</th>
+                      <th>Location</th>
+                      <th>Device</th>
+                      <th>Browser</th>
+                      <th>Channel</th>
+                      <th>Date & Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.views.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center text-slate-500 py-8">No view data found</td>
+                      </tr>
+                    ) : (
+                      data.views.map((view) => (
+                        <tr key={view.id}>
+                          <td>
+                            <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
+                              {view.ip_address || 'Unknown'}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-1">
+                              <Globe className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700 dark:text-slate-300">{view.country || 'Unknown'}</span>
+                              {view.city && view.city !== 'Unknown' && (
+                                <span className="text-slate-500">, {view.city}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-1.5">
+                              <DeviceIcon type={view.device_type} />
+                              <span className="capitalize text-slate-700 dark:text-slate-300">{view.device_type || 'Unknown'}</span>
+                            </div>
+                          </td>
+                          <td className="text-slate-600 dark:text-slate-400">{view.browser || 'Unknown'}</td>
+                          <td className="text-slate-700 dark:text-slate-300">{view.channel_title || '-'}</td>
+                          <td className="text-slate-500 text-sm whitespace-nowrap">
+                            {view.viewed_at ? format(new Date(view.viewed_at), 'MMM d, yyyy h:mm a') : '-'}
                           </td>
                         </tr>
                       ))

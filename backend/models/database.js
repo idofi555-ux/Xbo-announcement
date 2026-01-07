@@ -251,6 +251,32 @@ const initDatabase = async () => {
           CREATE INDEX IF NOT EXISTS idx_button_clicks_announcement ON button_clicks(announcement_id);
         `);
 
+        // Run migrations to add missing columns
+        console.log('Running migrations for missing columns...');
+
+        const migrations = [
+          'ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS country TEXT',
+          'ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS city TEXT',
+          'ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS device_type TEXT',
+          'ALTER TABLE link_clicks ADD COLUMN IF NOT EXISTS browser TEXT',
+          'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS country TEXT',
+          'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS city TEXT',
+          'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS device_type TEXT',
+          'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS browser TEXT',
+          'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS ip_address TEXT'
+        ];
+
+        for (const migration of migrations) {
+          try {
+            await client.query(migration);
+            console.log('Migration applied:', migration);
+          } catch (e) {
+            // Column might already exist
+          }
+        }
+
+        console.log('Migrations complete.');
+
         // Create default admin
         const adminResult = await client.query(
           'SELECT COUNT(*) as count FROM users WHERE role = $1',
@@ -261,9 +287,9 @@ const initDatabase = async () => {
           const hashedPassword = bcrypt.hashSync('admin123', 10);
           await client.query(
             'INSERT INTO users (email, password, name, role) VALUES ($1, $2, $3, $4)',
-            ['admin@xbo.com', hashedPassword, 'Admin', 'admin']
+            ['ido@xbo.com', hashedPassword, 'Admin', 'admin']
           );
-          console.log('Default admin created: admin@xbo.com / admin123');
+          console.log('Default admin created: ido@xbo.com / admin123');
         }
 
         console.log('✅ PostgreSQL database initialized');
@@ -391,14 +417,54 @@ const initDatabase = async () => {
         CREATE INDEX IF NOT EXISTS idx_button_clicks_announcement ON button_clicks(announcement_id);
       `);
 
+      // Run migrations to add missing columns to existing tables
+      console.log('Running migrations for missing columns...');
+
+      // Migration: Add missing columns to link_clicks
+      const linkClicksMigrations = [
+        'ALTER TABLE link_clicks ADD COLUMN country TEXT',
+        'ALTER TABLE link_clicks ADD COLUMN city TEXT',
+        'ALTER TABLE link_clicks ADD COLUMN device_type TEXT',
+        'ALTER TABLE link_clicks ADD COLUMN browser TEXT'
+      ];
+
+      for (const migration of linkClicksMigrations) {
+        try {
+          db.exec(migration);
+          console.log('Migration applied:', migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
+      // Migration: Add missing columns to pixel_views
+      const pixelViewsMigrations = [
+        'ALTER TABLE pixel_views ADD COLUMN country TEXT',
+        'ALTER TABLE pixel_views ADD COLUMN city TEXT',
+        'ALTER TABLE pixel_views ADD COLUMN device_type TEXT',
+        'ALTER TABLE pixel_views ADD COLUMN browser TEXT',
+        'ALTER TABLE pixel_views ADD COLUMN ip_address TEXT'
+      ];
+
+      for (const migration of pixelViewsMigrations) {
+        try {
+          db.exec(migration);
+          console.log('Migration applied:', migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
+      console.log('Migrations complete.');
+
       // Create default admin
       const adminResult = db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get('admin');
       if (adminResult.count === 0) {
         const hashedPassword = bcrypt.hashSync('admin123', 10);
         db.prepare('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)').run(
-          'admin@xbo.com', hashedPassword, 'Admin', 'admin'
+          'ido@xbo.com', hashedPassword, 'Admin', 'admin'
         );
-        console.log('Default admin created: admin@xbo.com / admin123');
+        console.log('Default admin created: ido@xbo.com / admin123');
       }
 
       console.log('✅ SQLite database initialized');
