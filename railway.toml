@@ -8,7 +8,8 @@ healthcheckTimeout = 100
 
 [[mounts]]
 source = "xbo_data"
-destination = "/app/backend/data"
+destination = "/data"
 
 [env]
 NODE_ENV = "production"
+SQLITE_PATH = "/data/xbo.db"
