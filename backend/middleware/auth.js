@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const db = require('../models/database');
+const { pool } = require('../models/database');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-me';
 
@@ -13,9 +13,9 @@ const generateToken = (user) => {
 };
 
 // Verify JWT token middleware
-const authenticate = (req, res, next) => {
+const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
   }
@@ -24,15 +24,18 @@ const authenticate = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    
+
     // Get fresh user data
-    const user = db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(decoded.id);
-    
-    if (!user) {
+    const result = await pool.query(
+      'SELECT id, email, name, role FROM users WHERE id = $1',
+      [decoded.id]
+    );
+
+    if (result.rows.length === 0) {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    req.user = user;
+    req.user = result.rows[0];
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid token' });
@@ -48,11 +51,15 @@ const adminOnly = (req, res, next) => {
 };
 
 // Log activity
-const logActivity = (userId, action, details = null) => {
-  db.prepare(`
-    INSERT INTO activity_log (user_id, action, details) 
-    VALUES (?, ?, ?)
-  `).run(userId, action, details ? JSON.stringify(details) : null);
+const logActivity = async (userId, action, details = null) => {
+  try {
+    await pool.query(
+      'INSERT INTO activity_log (user_id, action, details) VALUES ($1, $2, $3)',
+      [userId, action, details ? JSON.stringify(details) : null]
+    );
+  } catch (error) {
+    console.error('Error logging activity:', error);
+  }
 };
 
 module.exports = {

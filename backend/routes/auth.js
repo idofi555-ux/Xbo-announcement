@@ -1,12 +1,12 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const db = require('../models/database');
+const { pool } = require('../models/database');
 const { generateToken, authenticate, adminOnly, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -14,17 +14,18 @@ router.post('/login', (req, res) => {
       return res.status(400).json({ error: 'Email and password required' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = result.rows[0];
 
     if (!user || !bcrypt.compareSync(password, user.password)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Update last login
-    db.prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
+    await pool.query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
     const token = generateToken(user);
-    logActivity(user.id, 'login');
+    await logActivity(user.id, 'login');
 
     res.json({
       token,
@@ -47,7 +48,7 @@ router.get('/me', authenticate, (req, res) => {
 });
 
 // Register new user (admin only)
-router.post('/register', authenticate, adminOnly, (req, res) => {
+router.post('/register', authenticate, adminOnly, async (req, res) => {
   try {
     const { email, password, name, role = 'user' } = req.body;
 
@@ -56,23 +57,23 @@ router.post('/register', authenticate, adminOnly, (req, res) => {
     }
 
     // Check if user exists
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (existing) {
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
 
-    const result = db.prepare(`
-      INSERT INTO users (email, password, name, role) 
-      VALUES (?, ?, ?, ?)
-    `).run(email, hashedPassword, name, role);
+    const result = await pool.query(
+      'INSERT INTO users (email, password, name, role) VALUES ($1, $2, $3, $4) RETURNING id',
+      [email, hashedPassword, name, role]
+    );
 
-    logActivity(req.user.id, 'user_created', { new_user_id: result.lastInsertRowid, email });
+    await logActivity(req.user.id, 'user_created', { new_user_id: result.rows[0].id, email });
 
-    res.status(201).json({ 
+    res.status(201).json({
       message: 'User created',
-      user: { id: result.lastInsertRowid, email, name, role }
+      user: { id: result.rows[0].id, email, name, role }
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -81,15 +82,15 @@ router.post('/register', authenticate, adminOnly, (req, res) => {
 });
 
 // Get all users (admin only)
-router.get('/users', authenticate, adminOnly, (req, res) => {
+router.get('/users', authenticate, adminOnly, async (req, res) => {
   try {
-    const users = db.prepare(`
-      SELECT id, email, name, role, created_at, last_login 
-      FROM users 
+    const result = await pool.query(`
+      SELECT id, email, name, role, created_at, last_login
+      FROM users
       ORDER BY created_at DESC
-    `).all();
+    `);
 
-    res.json({ users });
+    res.json({ users: result.rows });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
@@ -97,34 +98,40 @@ router.get('/users', authenticate, adminOnly, (req, res) => {
 });
 
 // Update user (admin only)
-router.put('/users/:id', authenticate, adminOnly, (req, res) => {
+router.put('/users/:id', authenticate, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, role, password } = req.body;
 
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-    if (!user) {
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const user = userResult.rows[0];
+
     // Don't allow removing the last admin
     if (user.role === 'admin' && role === 'user') {
-      const adminCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get('admin');
-      if (adminCount.count <= 1) {
+      const adminCount = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = $1', ['admin']);
+      if (parseInt(adminCount.rows[0].count) <= 1) {
         return res.status(400).json({ error: 'Cannot remove the last admin' });
       }
     }
 
     if (password) {
       const hashedPassword = bcrypt.hashSync(password, 10);
-      db.prepare('UPDATE users SET name = ?, role = ?, password = ? WHERE id = ?')
-        .run(name || user.name, role || user.role, hashedPassword, id);
+      await pool.query(
+        'UPDATE users SET name = $1, role = $2, password = $3 WHERE id = $4',
+        [name || user.name, role || user.role, hashedPassword, id]
+      );
     } else {
-      db.prepare('UPDATE users SET name = ?, role = ? WHERE id = ?')
-        .run(name || user.name, role || user.role, id);
+      await pool.query(
+        'UPDATE users SET name = $1, role = $2 WHERE id = $3',
+        [name || user.name, role || user.role, id]
+      );
     }
 
-    logActivity(req.user.id, 'user_updated', { target_user_id: id });
+    await logActivity(req.user.id, 'user_updated', { target_user_id: id });
 
     res.json({ message: 'User updated' });
   } catch (error) {
@@ -134,7 +141,7 @@ router.put('/users/:id', authenticate, adminOnly, (req, res) => {
 });
 
 // Delete user (admin only)
-router.delete('/users/:id', authenticate, adminOnly, (req, res) => {
+router.delete('/users/:id', authenticate, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -143,21 +150,23 @@ router.delete('/users/:id', authenticate, adminOnly, (req, res) => {
       return res.status(400).json({ error: 'Cannot delete yourself' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-    if (!user) {
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const user = userResult.rows[0];
+
     // Don't allow deleting the last admin
     if (user.role === 'admin') {
-      const adminCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get('admin');
-      if (adminCount.count <= 1) {
+      const adminCount = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = $1', ['admin']);
+      if (parseInt(adminCount.rows[0].count) <= 1) {
         return res.status(400).json({ error: 'Cannot delete the last admin' });
       }
     }
 
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
-    logActivity(req.user.id, 'user_deleted', { deleted_user_email: user.email });
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    await logActivity(req.user.id, 'user_deleted', { deleted_user_email: user.email });
 
     res.json({ message: 'User deleted' });
   } catch (error) {
@@ -167,7 +176,7 @@ router.delete('/users/:id', authenticate, adminOnly, (req, res) => {
 });
 
 // Change own password
-router.put('/password', authenticate, (req, res) => {
+router.put('/password', authenticate, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -175,16 +184,17 @@ router.put('/password', authenticate, (req, res) => {
       return res.status(400).json({ error: 'Current and new password required' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    const user = userResult.rows[0];
 
     if (!bcrypt.compareSync(currentPassword, user.password)) {
       return res.status(401).json({ error: 'Current password is incorrect' });
     }
 
     const hashedPassword = bcrypt.hashSync(newPassword, 10);
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, req.user.id);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, req.user.id]);
 
-    logActivity(req.user.id, 'password_changed');
+    await logActivity(req.user.id, 'password_changed');
 
     res.json({ message: 'Password updated' });
   } catch (error) {

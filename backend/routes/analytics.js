@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../models/database');
+const { pool } = require('../models/database');
 const { authenticate, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
@@ -7,10 +7,10 @@ const router = express.Router();
 // ==================== CAMPAIGNS ====================
 
 // Get all campaigns
-router.get('/campaigns', authenticate, (req, res) => {
+router.get('/campaigns', authenticate, async (req, res) => {
   try {
-    const campaigns = db.prepare(`
-      SELECT 
+    const result = await pool.query(`
+      SELECT
         c.*,
         u.name as created_by_name,
         (SELECT COUNT(*) FROM announcements WHERE campaign_id = c.id) as announcement_count,
@@ -18,9 +18,9 @@ router.get('/campaigns', authenticate, (req, res) => {
       FROM campaigns c
       LEFT JOIN users u ON c.created_by = u.id
       ORDER BY c.created_at DESC
-    `).all();
+    `);
 
-    res.json({ campaigns });
+    res.json({ campaigns: result.rows });
   } catch (error) {
     console.error('Error fetching campaigns:', error);
     res.status(500).json({ error: 'Failed to fetch campaigns' });
@@ -28,7 +28,7 @@ router.get('/campaigns', authenticate, (req, res) => {
 });
 
 // Create campaign
-router.post('/campaigns', authenticate, (req, res) => {
+router.post('/campaigns', authenticate, async (req, res) => {
   try {
     const { name, description } = req.body;
 
@@ -36,16 +36,16 @@ router.post('/campaigns', authenticate, (req, res) => {
       return res.status(400).json({ error: 'Campaign name required' });
     }
 
-    const result = db.prepare(`
-      INSERT INTO campaigns (name, description, created_by)
-      VALUES (?, ?, ?)
-    `).run(name, description || null, req.user.id);
+    const result = await pool.query(
+      'INSERT INTO campaigns (name, description, created_by) VALUES ($1, $2, $3) RETURNING id',
+      [name, description || null, req.user.id]
+    );
 
-    logActivity(req.user.id, 'campaign_created', { campaign_id: result.lastInsertRowid, name });
+    await logActivity(req.user.id, 'campaign_created', { campaign_id: result.rows[0].id, name });
 
-    res.status(201).json({ 
+    res.status(201).json({
       message: 'Campaign created',
-      campaign: { id: result.lastInsertRowid, name, description }
+      campaign: { id: result.rows[0].id, name, description }
     });
   } catch (error) {
     console.error('Error creating campaign:', error);
@@ -54,19 +54,22 @@ router.post('/campaigns', authenticate, (req, res) => {
 });
 
 // Update campaign
-router.put('/campaigns/:id', authenticate, (req, res) => {
+router.put('/campaigns/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
 
-    const campaign = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(id);
-    if (!campaign) {
+    const campaignResult = await pool.query('SELECT * FROM campaigns WHERE id = $1', [id]);
+    if (campaignResult.rows.length === 0) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
-    db.prepare(`
-      UPDATE campaigns SET name = ?, description = ? WHERE id = ?
-    `).run(name || campaign.name, description !== undefined ? description : campaign.description, id);
+    const campaign = campaignResult.rows[0];
+
+    await pool.query(
+      'UPDATE campaigns SET name = $1, description = $2 WHERE id = $3',
+      [name || campaign.name, description !== undefined ? description : campaign.description, id]
+    );
 
     res.json({ message: 'Campaign updated' });
   } catch (error) {
@@ -76,13 +79,13 @@ router.put('/campaigns/:id', authenticate, (req, res) => {
 });
 
 // Delete campaign
-router.delete('/campaigns/:id', authenticate, (req, res) => {
+router.delete('/campaigns/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
     // Set announcements to no campaign
-    db.prepare('UPDATE announcements SET campaign_id = NULL WHERE campaign_id = ?').run(id);
-    db.prepare('DELETE FROM campaigns WHERE id = ?').run(id);
+    await pool.query('UPDATE announcements SET campaign_id = NULL WHERE campaign_id = $1', [id]);
+    await pool.query('DELETE FROM campaigns WHERE id = $1', [id]);
 
     res.json({ message: 'Campaign deleted' });
   } catch (error) {
@@ -94,45 +97,52 @@ router.delete('/campaigns/:id', authenticate, (req, res) => {
 // ==================== ANALYTICS ====================
 
 // Dashboard overview
-router.get('/analytics/overview', authenticate, (req, res) => {
+router.get('/analytics/overview', authenticate, async (req, res) => {
   try {
+    const totalAnnouncements = await pool.query('SELECT COUNT(*) as count FROM announcements');
+    const sentAnnouncements = await pool.query('SELECT COUNT(*) as count FROM announcements WHERE status = $1', ['sent']);
+    const scheduledAnnouncements = await pool.query('SELECT COUNT(*) as count FROM announcements WHERE status = $1', ['scheduled']);
+    const totalChannels = await pool.query('SELECT COUNT(*) as count FROM channels WHERE is_active = 1');
+    const totalClicks = await pool.query('SELECT COUNT(*) as count FROM link_clicks');
+    const totalViews = await pool.query('SELECT COALESCE(SUM(views), 0) as sum FROM announcement_targets');
+
     const stats = {
-      total_announcements: db.prepare('SELECT COUNT(*) as count FROM announcements').get().count,
-      sent_announcements: db.prepare('SELECT COUNT(*) as count FROM announcements WHERE status = ?').get('sent').count,
-      scheduled_announcements: db.prepare('SELECT COUNT(*) as count FROM announcements WHERE status = ?').get('scheduled').count,
-      total_channels: db.prepare('SELECT COUNT(*) as count FROM channels WHERE is_active = 1').get().count,
-      total_clicks: db.prepare('SELECT COUNT(*) as count FROM link_clicks').get().count,
-      total_views: db.prepare('SELECT COALESCE(SUM(views), 0) as sum FROM announcement_targets').get().sum,
+      total_announcements: parseInt(totalAnnouncements.rows[0].count),
+      sent_announcements: parseInt(sentAnnouncements.rows[0].count),
+      scheduled_announcements: parseInt(scheduledAnnouncements.rows[0].count),
+      total_channels: parseInt(totalChannels.rows[0].count),
+      total_clicks: parseInt(totalClicks.rows[0].count),
+      total_views: parseInt(totalViews.rows[0].sum)
     };
 
     // Recent activity
-    const recentAnnouncements = db.prepare(`
+    const recentResult = await pool.query(`
       SELECT a.id, a.title, a.status, a.sent_at, a.created_at,
-             (SELECT SUM(views) FROM announcement_targets WHERE announcement_id = a.id) as views,
-             (SELECT COUNT(*) FROM link_clicks lc 
-              JOIN tracked_links tl ON lc.link_id = tl.id 
+             (SELECT COALESCE(SUM(views), 0) FROM announcement_targets WHERE announcement_id = a.id) as views,
+             (SELECT COUNT(*) FROM link_clicks lc
+              JOIN tracked_links tl ON lc.link_id = tl.id
               WHERE tl.announcement_id = a.id) as clicks
       FROM announcements a
       ORDER BY COALESCE(a.sent_at, a.created_at) DESC
       LIMIT 5
-    `).all();
+    `);
 
     // Clicks over last 7 days
-    const clicksTimeline = db.prepare(`
+    const clicksTimelineResult = await pool.query(`
       SELECT DATE(clicked_at) as date, COUNT(*) as clicks
       FROM link_clicks
-      WHERE clicked_at >= datetime('now', '-7 days')
+      WHERE clicked_at >= NOW() - INTERVAL '7 days'
       GROUP BY DATE(clicked_at)
       ORDER BY date
-    `).all();
+    `);
 
     // Top performing announcements
-    const topAnnouncements = db.prepare(`
-      SELECT 
+    const topResult = await pool.query(`
+      SELECT
         a.id, a.title,
         COALESCE(SUM(at.views), 0) as views,
-        (SELECT COUNT(*) FROM link_clicks lc 
-         JOIN tracked_links tl ON lc.link_id = tl.id 
+        (SELECT COUNT(*) FROM link_clicks lc
+         JOIN tracked_links tl ON lc.link_id = tl.id
          WHERE tl.announcement_id = a.id) as clicks
       FROM announcements a
       LEFT JOIN announcement_targets at ON a.id = at.announcement_id
@@ -140,9 +150,14 @@ router.get('/analytics/overview', authenticate, (req, res) => {
       GROUP BY a.id
       ORDER BY clicks DESC
       LIMIT 5
-    `).all();
+    `);
 
-    res.json({ stats, recentAnnouncements, clicksTimeline, topAnnouncements });
+    res.json({
+      stats,
+      recentAnnouncements: recentResult.rows,
+      clicksTimeline: clicksTimelineResult.rows,
+      topAnnouncements: topResult.rows
+    });
   } catch (error) {
     console.error('Error fetching analytics:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
@@ -150,57 +165,59 @@ router.get('/analytics/overview', authenticate, (req, res) => {
 });
 
 // Detailed analytics for date range
-router.get('/analytics/detailed', authenticate, (req, res) => {
+router.get('/analytics/detailed', authenticate, async (req, res) => {
   try {
     const { start_date, end_date, campaign_id } = req.query;
 
-    let dateFilter = '';
-    const params = [];
-
-    if (start_date) {
-      dateFilter += ' AND a.sent_at >= ?';
-      params.push(start_date);
-    }
-    if (end_date) {
-      dateFilter += ' AND a.sent_at <= ?';
-      params.push(end_date);
-    }
-
-    let campaignFilter = '';
-    if (campaign_id) {
-      campaignFilter = ' AND a.campaign_id = ?';
-      params.push(campaign_id);
-    }
-
-    // Announcements performance
-    const announcements = db.prepare(`
-      SELECT 
+    let query = `
+      SELECT
         a.id, a.title, a.sent_at,
         c.name as campaign_name,
         COALESCE(SUM(at.views), 0) as views,
-        (SELECT COUNT(*) FROM link_clicks lc 
-         JOIN tracked_links tl ON lc.link_id = tl.id 
+        (SELECT COUNT(*) FROM link_clicks lc
+         JOIN tracked_links tl ON lc.link_id = tl.id
          WHERE tl.announcement_id = a.id) as clicks,
-        (SELECT COUNT(DISTINCT lc.ip_address) FROM link_clicks lc 
-         JOIN tracked_links tl ON lc.link_id = tl.id 
+        (SELECT COUNT(DISTINCT lc.ip_address) FROM link_clicks lc
+         JOIN tracked_links tl ON lc.link_id = tl.id
          WHERE tl.announcement_id = a.id) as unique_clicks
       FROM announcements a
       LEFT JOIN announcement_targets at ON a.id = at.announcement_id
       LEFT JOIN campaigns c ON a.campaign_id = c.id
-      WHERE a.status = 'sent' ${dateFilter} ${campaignFilter}
-      GROUP BY a.id
-      ORDER BY a.sent_at DESC
-    `).all(...params);
+      WHERE a.status = 'sent'
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (start_date) {
+      query += ` AND a.sent_at >= $${paramIndex++}`;
+      params.push(start_date);
+    }
+    if (end_date) {
+      query += ` AND a.sent_at <= $${paramIndex++}`;
+      params.push(end_date);
+    }
+    if (campaign_id) {
+      query += ` AND a.campaign_id = $${paramIndex++}`;
+      params.push(campaign_id);
+    }
+
+    query += ' GROUP BY a.id, c.name ORDER BY a.sent_at DESC';
+
+    const announcementsResult = await pool.query(query, params);
 
     // Calculate CTR
-    const announcementsWithCTR = announcements.map(a => ({
+    const announcementsWithCTR = announcementsResult.rows.map(a => ({
       ...a,
-      ctr: a.views > 0 ? ((a.clicks / a.views) * 100).toFixed(2) : 0
+      views: parseInt(a.views),
+      clicks: parseInt(a.clicks),
+      unique_clicks: parseInt(a.unique_clicks),
+      ctr: parseInt(a.views) > 0 ? ((parseInt(a.clicks) / parseInt(a.views)) * 100).toFixed(2) : 0
     }));
 
     // Channel performance
-    const channels = db.prepare(`
-      SELECT 
+    const channelsResult = await pool.query(`
+      SELECT
         ch.id, ch.title, ch.member_count,
         COUNT(DISTINCT at.announcement_id) as announcements_received,
         COALESCE(SUM(at.views), 0) as total_views
@@ -210,9 +227,9 @@ router.get('/analytics/detailed', authenticate, (req, res) => {
       WHERE ch.is_active = 1
       GROUP BY ch.id
       ORDER BY total_views DESC
-    `).all();
+    `);
 
-    res.json({ announcements: announcementsWithCTR, channels });
+    res.json({ announcements: announcementsWithCTR, channels: channelsResult.rows });
   } catch (error) {
     console.error('Error fetching detailed analytics:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
@@ -220,22 +237,22 @@ router.get('/analytics/detailed', authenticate, (req, res) => {
 });
 
 // Activity log
-router.get('/analytics/activity', authenticate, (req, res) => {
+router.get('/analytics/activity', authenticate, async (req, res) => {
   try {
     const { limit = 50 } = req.query;
 
-    const activities = db.prepare(`
-      SELECT 
+    const result = await pool.query(`
+      SELECT
         al.*,
         u.name as user_name,
         u.email as user_email
       FROM activity_log al
       LEFT JOIN users u ON al.user_id = u.id
       ORDER BY al.created_at DESC
-      LIMIT ?
-    `).all(parseInt(limit));
+      LIMIT $1
+    `, [parseInt(limit)]);
 
-    res.json({ activities });
+    res.json({ activities: result.rows });
   } catch (error) {
     console.error('Error fetching activity:', error);
     res.status(500).json({ error: 'Failed to fetch activity' });

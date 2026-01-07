@@ -1,25 +1,25 @@
 const express = require('express');
-const db = require('../models/database');
+const { pool } = require('../models/database');
 const { authenticate, logActivity } = require('../middleware/auth');
 const { updateChannelStats } = require('../utils/telegram');
 
 const router = express.Router();
 
 // Get all channels
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
-    const channels = db.prepare(`
-      SELECT 
+    const result = await pool.query(`
+      SELECT
         c.*,
         u.name as added_by_name,
         (SELECT COUNT(*) FROM announcement_targets WHERE channel_id = c.id) as total_announcements,
-        (SELECT SUM(views) FROM announcement_targets WHERE channel_id = c.id) as total_views
+        (SELECT COALESCE(SUM(views), 0) FROM announcement_targets WHERE channel_id = c.id) as total_views
       FROM channels c
       LEFT JOIN users u ON c.added_by = u.id
       ORDER BY c.created_at DESC
-    `).all();
+    `);
 
-    res.json({ channels });
+    res.json({ channels: result.rows });
   } catch (error) {
     console.error('Error fetching channels:', error);
     res.status(500).json({ error: 'Failed to fetch channels' });
@@ -27,35 +27,35 @@ router.get('/', authenticate, (req, res) => {
 });
 
 // Get single channel with stats
-router.get('/:id', authenticate, (req, res) => {
+router.get('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const channel = db.prepare(`
-      SELECT 
+    const channelResult = await pool.query(`
+      SELECT
         c.*,
         u.name as added_by_name
       FROM channels c
       LEFT JOIN users u ON c.added_by = u.id
-      WHERE c.id = ?
-    `).get(id);
+      WHERE c.id = $1
+    `, [id]);
 
-    if (!channel) {
+    if (channelResult.rows.length === 0) {
       return res.status(404).json({ error: 'Channel not found' });
     }
 
     // Get recent announcements for this channel
-    const announcements = db.prepare(`
-      SELECT 
+    const announcementsResult = await pool.query(`
+      SELECT
         a.id, a.title, a.status, at.views, at.sent_at
       FROM announcements a
       JOIN announcement_targets at ON a.id = at.announcement_id
-      WHERE at.channel_id = ?
+      WHERE at.channel_id = $1
       ORDER BY at.sent_at DESC
       LIMIT 10
-    `).all(id);
+    `, [id]);
 
-    res.json({ channel, announcements });
+    res.json({ channel: channelResult.rows[0], announcements: announcementsResult.rows });
   } catch (error) {
     console.error('Error fetching channel:', error);
     res.status(500).json({ error: 'Failed to fetch channel' });
@@ -63,7 +63,7 @@ router.get('/:id', authenticate, (req, res) => {
 });
 
 // Add channel manually
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
     const { telegram_id, title, type = 'channel' } = req.body;
 
@@ -72,21 +72,21 @@ router.post('/', authenticate, (req, res) => {
     }
 
     // Check if already exists
-    const existing = db.prepare('SELECT id FROM channels WHERE telegram_id = ?').get(telegram_id);
-    if (existing) {
+    const existing = await pool.query('SELECT id FROM channels WHERE telegram_id = $1', [telegram_id]);
+    if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Channel already registered' });
     }
 
-    const result = db.prepare(`
-      INSERT INTO channels (telegram_id, title, type, added_by)
-      VALUES (?, ?, ?, ?)
-    `).run(telegram_id, title, type, req.user.id);
+    const result = await pool.query(
+      'INSERT INTO channels (telegram_id, title, type, added_by) VALUES ($1, $2, $3, $4) RETURNING id',
+      [telegram_id, title, type, req.user.id]
+    );
 
-    logActivity(req.user.id, 'channel_added', { channel_id: result.lastInsertRowid, title });
+    await logActivity(req.user.id, 'channel_added', { channel_id: result.rows[0].id, title });
 
-    res.status(201).json({ 
+    res.status(201).json({
       message: 'Channel added',
-      channel: { id: result.lastInsertRowid, telegram_id, title, type }
+      channel: { id: result.rows[0].id, telegram_id, title, type }
     });
   } catch (error) {
     console.error('Error adding channel:', error);
@@ -95,27 +95,28 @@ router.post('/', authenticate, (req, res) => {
 });
 
 // Update channel
-router.put('/:id', authenticate, (req, res) => {
+router.put('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { title, is_active } = req.body;
 
-    const channel = db.prepare('SELECT * FROM channels WHERE id = ?').get(id);
-    if (!channel) {
+    const channelResult = await pool.query('SELECT * FROM channels WHERE id = $1', [id]);
+    if (channelResult.rows.length === 0) {
       return res.status(404).json({ error: 'Channel not found' });
     }
 
-    db.prepare(`
-      UPDATE channels 
-      SET title = ?, is_active = ?
-      WHERE id = ?
-    `).run(
-      title !== undefined ? title : channel.title,
-      is_active !== undefined ? (is_active ? 1 : 0) : channel.is_active,
-      id
+    const channel = channelResult.rows[0];
+
+    await pool.query(
+      'UPDATE channels SET title = $1, is_active = $2 WHERE id = $3',
+      [
+        title !== undefined ? title : channel.title,
+        is_active !== undefined ? (is_active ? 1 : 0) : channel.is_active,
+        id
+      ]
     );
 
-    logActivity(req.user.id, 'channel_updated', { channel_id: id });
+    await logActivity(req.user.id, 'channel_updated', { channel_id: id });
 
     res.json({ message: 'Channel updated' });
   } catch (error) {
@@ -125,17 +126,19 @@ router.put('/:id', authenticate, (req, res) => {
 });
 
 // Delete channel
-router.delete('/:id', authenticate, (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const channel = db.prepare('SELECT * FROM channels WHERE id = ?').get(id);
-    if (!channel) {
+    const channelResult = await pool.query('SELECT * FROM channels WHERE id = $1', [id]);
+    if (channelResult.rows.length === 0) {
       return res.status(404).json({ error: 'Channel not found' });
     }
 
-    db.prepare('DELETE FROM channels WHERE id = ?').run(id);
-    logActivity(req.user.id, 'channel_deleted', { title: channel.title });
+    const channel = channelResult.rows[0];
+
+    await pool.query('DELETE FROM channels WHERE id = $1', [id]);
+    await logActivity(req.user.id, 'channel_deleted', { title: channel.title });
 
     res.json({ message: 'Channel deleted' });
   } catch (error) {
@@ -149,9 +152,9 @@ router.post('/:id/refresh', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     await updateChannelStats(id);
-    
-    const channel = db.prepare('SELECT * FROM channels WHERE id = ?').get(id);
-    res.json({ channel });
+
+    const channelResult = await pool.query('SELECT * FROM channels WHERE id = $1', [id]);
+    res.json({ channel: channelResult.rows[0] });
   } catch (error) {
     console.error('Error refreshing channel:', error);
     res.status(500).json({ error: 'Failed to refresh channel stats' });

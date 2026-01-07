@@ -1,11 +1,11 @@
 const TelegramBot = require('node-telegram-bot-api');
-const db = require('../models/database');
+const { pool } = require('../models/database');
 
 let bot = null;
 
 const initBot = () => {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  
+
   if (!token || token === 'your-telegram-bot-token') {
     console.warn('⚠️  Telegram bot token not configured. Bot features disabled.');
     return null;
@@ -13,11 +13,11 @@ const initBot = () => {
 
   try {
     bot = new TelegramBot(token, { polling: true });
-    
+
     // Handle /start command
     bot.onText(/\/start/, (msg) => {
       const chatId = msg.chat.id;
-      bot.sendMessage(chatId, 
+      bot.sendMessage(chatId,
         `👋 Hello! I'm the XBO Announcements Bot.\n\n` +
         `To add me to your channel or group:\n` +
         `1. Add me as an admin to your channel/group\n` +
@@ -30,12 +30,15 @@ const initBot = () => {
     // Handle /register command
     bot.onText(/\/register/, async (msg) => {
       const chat = msg.chat;
-      
+
       try {
         // Check if already registered
-        const existing = db.prepare('SELECT id FROM channels WHERE telegram_id = ?').get(chat.id.toString());
-        
-        if (existing) {
+        const existing = await pool.query(
+          'SELECT id FROM channels WHERE telegram_id = $1',
+          [chat.id.toString()]
+        );
+
+        if (existing.rows.length > 0) {
           bot.sendMessage(chat.id, '✅ This chat is already registered!');
           return;
         }
@@ -49,17 +52,18 @@ const initBot = () => {
         }
 
         // Register the channel
-        db.prepare(`
-          INSERT INTO channels (telegram_id, title, type, member_count) 
-          VALUES (?, ?, ?, ?)
-        `).run(
-          chat.id.toString(),
-          chat.title || chat.username || 'Private Chat',
-          chat.type,
-          memberCount
+        await pool.query(
+          `INSERT INTO channels (telegram_id, title, type, member_count)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            chat.id.toString(),
+            chat.title || chat.username || 'Private Chat',
+            chat.type,
+            memberCount
+          ]
         );
 
-        bot.sendMessage(chat.id, 
+        bot.sendMessage(chat.id,
           `✅ Successfully registered!\n\n` +
           `📍 Chat: ${chat.title || 'Private'}\n` +
           `🆔 ID: ${chat.id}\n` +
@@ -73,29 +77,42 @@ const initBot = () => {
     });
 
     // Handle /stats command
-    bot.onText(/\/stats/, (msg) => {
+    bot.onText(/\/stats/, async (msg) => {
       const chatId = msg.chat.id;
-      
-      const channel = db.prepare('SELECT * FROM channels WHERE telegram_id = ?').get(chatId.toString());
-      
-      if (!channel) {
-        bot.sendMessage(chatId, '❌ This chat is not registered. Use /register first.');
-        return;
+
+      try {
+        const channelResult = await pool.query(
+          'SELECT * FROM channels WHERE telegram_id = $1',
+          [chatId.toString()]
+        );
+
+        if (channelResult.rows.length === 0) {
+          bot.sendMessage(chatId, '❌ This chat is not registered. Use /register first.');
+          return;
+        }
+
+        const channel = channelResult.rows[0];
+
+        const statsResult = await pool.query(
+          `SELECT COUNT(*) as total_announcements,
+                  COALESCE(SUM(views), 0) as total_views
+           FROM announcement_targets
+           WHERE channel_id = $1`,
+          [channel.id]
+        );
+
+        const stats = statsResult.rows[0];
+
+        bot.sendMessage(chatId,
+          `📊 *Stats for ${channel.title}*\n\n` +
+          `📢 Total Announcements: ${stats.total_announcements || 0}\n` +
+          `👀 Total Views: ${stats.total_views || 0}`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch (error) {
+        console.error('Stats error:', error);
+        bot.sendMessage(chatId, '❌ Error fetching stats.');
       }
-
-      const stats = db.prepare(`
-        SELECT COUNT(*) as total_announcements,
-               SUM(views) as total_views
-        FROM announcement_targets 
-        WHERE channel_id = ?
-      `).get(channel.id);
-
-      bot.sendMessage(chatId,
-        `📊 *Stats for ${channel.title}*\n\n` +
-        `📢 Total Announcements: ${stats.total_announcements || 0}\n` +
-        `👀 Total Views: ${stats.total_views || 0}`,
-        { parse_mode: 'Markdown' }
-      );
     });
 
     console.log('✅ Telegram bot initialized');
@@ -112,10 +129,16 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
     throw new Error('Telegram bot not initialized');
   }
 
-  const channel = db.prepare('SELECT * FROM channels WHERE id = ?').get(channelId);
-  if (!channel) {
+  const channelResult = await pool.query(
+    'SELECT * FROM channels WHERE id = $1',
+    [channelId]
+  );
+
+  if (channelResult.rows.length === 0) {
     throw new Error('Channel not found');
   }
+
+  const channel = channelResult.rows[0];
 
   // Replace URLs with tracked versions
   let content = announcement.content;
@@ -137,7 +160,7 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
             url: trackedLink ? trackedLink.tracked_url : btn.url
           };
         });
-        
+
         replyMarkup = {
           inline_keyboard: trackedButtons.map(btn => [btn])
         };
@@ -178,12 +201,21 @@ const getBot = () => bot;
 const updateChannelStats = async (channelId) => {
   if (!bot) return;
 
-  const channel = db.prepare('SELECT telegram_id FROM channels WHERE id = ?').get(channelId);
-  if (!channel) return;
+  const channelResult = await pool.query(
+    'SELECT telegram_id FROM channels WHERE id = $1',
+    [channelId]
+  );
+
+  if (channelResult.rows.length === 0) return;
+
+  const channel = channelResult.rows[0];
 
   try {
     const count = await bot.getChatMemberCount(channel.telegram_id);
-    db.prepare('UPDATE channels SET member_count = ? WHERE id = ?').run(count, channelId);
+    await pool.query(
+      'UPDATE channels SET member_count = $1 WHERE id = $2',
+      [count, channelId]
+    );
   } catch (error) {
     console.error('Error updating channel stats:', error);
   }

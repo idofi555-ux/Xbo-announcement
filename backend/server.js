@@ -8,11 +8,10 @@ const path = require('path');
 const cron = require('node-cron');
 
 // Initialize database
-const db = require('./models/database');
+const { pool, initDatabase } = require('./models/database');
 
 // Initialize Telegram bot
-const { initBot, sendAnnouncement } = require('./utils/telegram');
-const bot = initBot();
+const { initBot } = require('./utils/telegram');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -60,9 +59,10 @@ app.use('/api', analyticsRoutes);
 app.use('/t', trackerRoutes);
 
 // Health check
+let bot = null;
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     bot: bot ? 'connected' : 'not configured',
     timestamp: new Date().toISOString()
   });
@@ -71,7 +71,7 @@ app.get('/api/health', (req, res) => {
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend/dist')));
-  
+
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api') && !req.path.startsWith('/t/')) {
       res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
@@ -82,26 +82,21 @@ if (process.env.NODE_ENV === 'production') {
 // Scheduled announcements cron job (runs every minute)
 cron.schedule('* * * * *', async () => {
   try {
-    const scheduled = db.prepare(`
-      SELECT a.*, 
-             GROUP_CONCAT(at.channel_id) as channel_ids
+    const result = await pool.query(`
+      SELECT a.*
       FROM announcements a
-      JOIN announcement_targets at ON a.id = at.announcement_id
-      WHERE a.status = 'scheduled' 
-        AND a.scheduled_at <= datetime('now')
-      GROUP BY a.id
-    `).all();
+      WHERE a.status = 'scheduled'
+        AND a.scheduled_at <= NOW()
+    `);
 
-    for (const announcement of scheduled) {
+    for (const announcement of result.rows) {
       console.log(`Sending scheduled announcement: ${announcement.title}`);
-      
-      // This would trigger the same logic as manual send
-      // For simplicity, updating status here - in production, call the full send logic
-      db.prepare(`
-        UPDATE announcements 
-        SET status = 'sent', sent_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(announcement.id);
+
+      // Update status
+      await pool.query(
+        `UPDATE announcements SET status = 'sent', sent_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [announcement.id]
+      );
     }
   } catch (error) {
     console.error('Cron job error:', error);
@@ -115,8 +110,16 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`
+const startServer = async () => {
+  try {
+    // Initialize database
+    await initDatabase();
+
+    // Initialize Telegram bot
+    bot = initBot();
+
+    app.listen(PORT, () => {
+      console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   🚀 XBO Announcements Server                             ║
@@ -132,7 +135,14 @@ app.listen(PORT, () => {
 ║   Password: admin123                                      ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
-  `);
-});
+      `);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 module.exports = app;
