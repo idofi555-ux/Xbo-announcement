@@ -68,8 +68,8 @@ export default function Campaigns() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Campaigns</h1>
-          <p className="text-dark-400 mt-1">Organize announcements into campaigns for tracking</p>
+          <h1 className="text-2xl font-semibold text-slate-800 dark:text-white">Campaigns</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Organize announcements into campaigns for tracking</p>
         </div>
         <button onClick={() => setShowModal(true)} className="btn btn-primary">
           <Plus className="w-4 h-4" />
@@ -88,8 +88,8 @@ export default function Campaigns() {
           <div className="w-16 h-16 rounded-full bg-dark-800 flex items-center justify-center mx-auto mb-4">
             <FolderKanban className="w-8 h-8 text-dark-600" />
           </div>
-          <h3 className="text-lg font-medium text-white mb-2">No campaigns yet</h3>
-          <p className="text-dark-400 mb-4">Create campaigns to organize your announcements</p>
+          <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-2">No campaigns yet</h3>
+          <p className="text-slate-500 dark:text-slate-400 mb-4">Create campaigns to organize your announcements</p>
           <button onClick={() => setShowModal(true)} className="btn btn-primary">
             <Plus className="w-4 h-4" />
             Create Campaign
@@ -105,7 +105,7 @@ export default function Campaigns() {
                     <FolderKanban className="w-5 h-5 text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-white">{campaign.name}</h3>
+                    <h3 className="font-medium text-slate-800 dark:text-white">{campaign.name}</h3>
                     {campaign.description && (
                       <p className="text-xs text-dark-500 line-clamp-1">{campaign.description}</p>
                     )}
@@ -162,7 +162,7 @@ export default function Campaigns() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="card p-6 w-full max-w-md animate-slide-up">
-            <h2 className="text-xl font-semibold text-white mb-4">
+            <h2 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">
               {editingCampaign ? 'Edit Campaign' : 'New Campaign'}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">

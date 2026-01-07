@@ -172,7 +172,7 @@ export default function AnnouncementEditor() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-semibold text-white">
+            <h1 className="text-2xl font-semibold text-slate-800 dark:text-white">
               {isNew ? 'New Announcement' : form.title || 'Edit Announcement'}
             </h1>
             {stats?.sent_at && (
@@ -300,7 +300,7 @@ export default function AnnouncementEditor() {
           {/* Stats (only for sent) */}
           {stats?.linkStats?.length > 0 && (
             <div className="card p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Link Performance</h3>
+              <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-4">Link Performance</h3>
               <div className="space-y-3">
                 {stats.linkStats.map((link) => (
                   <div key={link.id} className="flex items-center justify-between p-3 bg-dark-800/50 rounded-lg">
@@ -320,7 +320,7 @@ export default function AnnouncementEditor() {
 
           {stats?.clickTimeline?.length > 0 && (
             <div className="card p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Clicks Over Time</h3>
+              <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-4">Clicks Over Time</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={stats.clickTimeline}>
                   <XAxis 

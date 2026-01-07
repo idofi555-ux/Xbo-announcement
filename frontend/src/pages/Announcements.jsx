@@ -93,8 +93,8 @@ export default function Announcements() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Announcements</h1>
-          <p className="text-dark-400 mt-1">Manage your marketing messages</p>
+          <h1 className="text-2xl font-semibold text-slate-800 dark:text-white">Announcements</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your marketing messages</p>
         </div>
         <Link to="/announcements/new" className="btn btn-primary">
           <Plus className="w-4 h-4" />
@@ -139,8 +139,8 @@ export default function Announcements() {
           <div className="w-16 h-16 rounded-full bg-dark-800 flex items-center justify-center mx-auto mb-4">
             <Search className="w-8 h-8 text-dark-600" />
           </div>
-          <h3 className="text-lg font-medium text-white mb-2">No announcements found</h3>
-          <p className="text-dark-400 mb-4">Create your first announcement to get started</p>
+          <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-2">No announcements found</h3>
+          <p className="text-slate-500 dark:text-slate-400 mb-4">Create your first announcement to get started</p>
           <Link to="/announcements/new" className="btn btn-primary">
             <Plus className="w-4 h-4" />
             Create Announcement
@@ -155,7 +155,7 @@ export default function Announcements() {
                   <div className="flex items-center gap-3 mb-2">
                     <Link 
                       to={`/announcements/${announcement.id}`}
-                      className="text-lg font-medium text-white hover:text-brand-400 truncate"
+                      className="text-lg font-medium text-slate-800 dark:text-white hover:text-blue-500 dark:hover:text-blue-400 truncate"
                     >
                       {announcement.title}
                     </Link>

@@ -73,8 +73,8 @@ export default function Users() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Users</h1>
-          <p className="text-dark-400 mt-1">Manage team members and access</p>
+          <h1 className="text-2xl font-semibold text-slate-800 dark:text-white">Users</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage team members and access</p>
         </div>
         <button onClick={() => setShowModal(true)} className="btn btn-primary">
           <Plus className="w-4 h-4" />
@@ -176,7 +176,7 @@ export default function Users() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="card p-6 w-full max-w-md animate-slide-up">
-            <h2 className="text-xl font-semibold text-white mb-4">
+            <h2 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">
               {editingUser ? 'Edit User' : 'Add User'}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">

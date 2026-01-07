@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import {
   LayoutDashboard,
   Megaphone,
@@ -15,7 +16,8 @@ import {
   Zap,
   Bell,
   Search,
-  ChevronRight
+  Moon,
+  Sun
 } from 'lucide-react';
 
 const navigation = [
@@ -33,6 +35,7 @@ const adminNavigation = [
 
 export default function Layout({ children }) {
   const { user, logout, isAdmin } = useAuth();
+  const { darkMode, toggleDarkMode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -43,20 +46,20 @@ export default function Layout({ children }) {
   };
 
   const NavLink = ({ item, mobile = false }) => {
-    const isActive = location.pathname === item.href || 
+    const isActive = location.pathname === item.href ||
       (item.href !== '/' && location.pathname.startsWith(item.href));
-    
+
     return (
       <Link
         to={item.href}
         onClick={() => mobile && setMobileMenuOpen(false)}
         className={`sidebar-link group ${
-          isActive 
-            ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25' 
-            : 'text-slate-600 hover:bg-slate-100'
+          isActive
+            ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
+            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'
         }`}
       >
-        <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-600'}`} />
+        <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
         <span className="font-medium text-sm">{item.name}</span>
       </Link>
     );
@@ -71,8 +74,8 @@ export default function Layout({ children }) {
             <Zap className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-lg text-slate-800">XBO</h1>
-            <p className="text-xs text-slate-500 -mt-0.5">Announcements</p>
+            <h1 className="font-bold text-lg text-slate-800 dark:text-white">XBO</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 -mt-0.5">Announcements</p>
           </div>
         </div>
       )}
@@ -81,10 +84,10 @@ export default function Layout({ children }) {
       <div className="px-4 mb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search..." 
-            className="w-full pl-9 pr-4 py-2.5 bg-slate-100 border-0 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
+          <input
+            type="text"
+            placeholder="Search..."
+            className="w-full pl-9 pr-4 py-2.5 bg-slate-100 dark:bg-slate-700 border-0 rounded-xl text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white dark:focus:bg-slate-600 transition-all"
           />
         </div>
       </div>
@@ -108,18 +111,18 @@ export default function Layout({ children }) {
 
       {/* User Card */}
       <div className="p-4">
-        <div className="p-3 bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl">
+        <div className="p-3 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 rounded-2xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm shadow-md">
               {user?.name?.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-800 truncate">{user?.name}</p>
-              <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{user?.name}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user?.email}</p>
             </div>
             <button
               onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-lg transition-all"
+              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-white dark:hover:bg-slate-600 rounded-lg transition-all"
               title="Logout"
             >
               <LogOut className="w-4 h-4" />
@@ -131,13 +134,13 @@ export default function Layout({ children }) {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900">
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50">
         <div className="flex items-center justify-between px-4 py-3">
-          <button 
-            onClick={() => setMobileMenuOpen(true)} 
-            className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-xl"
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-2 -ml-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
           >
             <Menu className="w-6 h-6" />
           </button>
@@ -145,33 +148,41 @@ export default function Layout({ children }) {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/25">
               <Zap className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-slate-800">XBO</span>
+            <span className="font-bold text-slate-800 dark:text-white">XBO</span>
           </div>
-          <button className="p-2 -mr-2 text-slate-600 hover:bg-slate-100 rounded-xl relative">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleDarkMode}
+              className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+            >
+              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <button className="p-2 -mr-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl relative">
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-50">
-          <div 
-            className="absolute inset-0 bg-black/20 backdrop-blur-sm" 
-            onClick={() => setMobileMenuOpen(false)} 
+          <div
+            className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+            onClick={() => setMobileMenuOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-80 bg-white shadow-2xl animate-slide-in">
-            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
+          <div className="absolute left-0 top-0 bottom-0 w-80 bg-white dark:bg-slate-800 shadow-2xl animate-slide-in">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 dark:border-slate-700">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/25">
                   <Zap className="w-4 h-4 text-white" />
                 </div>
-                <span className="font-bold text-slate-800">XBO</span>
+                <span className="font-bold text-slate-800 dark:text-white">XBO</span>
               </div>
-              <button 
-                onClick={() => setMobileMenuOpen(false)} 
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl"
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -182,9 +193,17 @@ export default function Layout({ children }) {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:block fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-slate-200/50">
+      <aside className="hidden lg:block fixed left-0 top-0 bottom-0 w-64 bg-white dark:bg-slate-800 border-r border-slate-200/50 dark:border-slate-700/50">
         <SidebarContent />
       </aside>
+
+      {/* Desktop Theme Toggle */}
+      <button
+        onClick={toggleDarkMode}
+        className="hidden lg:flex fixed top-4 right-4 z-40 p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm hover:shadow-md transition-all text-slate-600 dark:text-slate-400"
+      >
+        {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+      </button>
 
       {/* Main Content */}
       <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">

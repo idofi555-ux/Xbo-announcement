@@ -65,8 +65,8 @@ export default function Analytics() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Analytics</h1>
-          <p className="text-dark-400 mt-1">Track your announcement performance</p>
+          <h1 className="text-2xl font-semibold text-slate-800 dark:text-white">Analytics</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Track your announcement performance</p>
         </div>
       </div>
 
@@ -111,7 +111,7 @@ export default function Analytics() {
             </div>
             <div>
               <p className="text-2xl font-semibold text-slate-800">{totalViews.toLocaleString()}</p>
-              <p className="text-sm text-dark-400">Total Views</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Total Views</p>
             </div>
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function Analytics() {
             </div>
             <div>
               <p className="text-2xl font-semibold text-slate-800">{totalClicks.toLocaleString()}</p>
-              <p className="text-sm text-dark-400">Total Clicks</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Total Clicks</p>
             </div>
           </div>
         </div>
@@ -133,7 +133,7 @@ export default function Analytics() {
             </div>
             <div>
               <p className="text-2xl font-semibold text-slate-800">{avgCTR}%</p>
-              <p className="text-sm text-dark-400">Avg. CTR</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Avg. CTR</p>
             </div>
           </div>
         </div>
@@ -142,7 +142,7 @@ export default function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Announcements Performance */}
         <div className="card p-6">
-          <h3 className="text-lg font-medium text-white mb-4">Announcement Performance</h3>
+          <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-4">Announcement Performance</h3>
           {data.announcements.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.announcements.slice(0, 10)}>
@@ -174,7 +174,7 @@ export default function Analytics() {
 
         {/* Channel Distribution */}
         <div className="card p-6">
-          <h3 className="text-lg font-medium text-white mb-4">Views by Channel</h3>
+          <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-4">Views by Channel</h3>
           {channelData.length > 0 ? (
             <div className="flex items-center gap-4">
               <ResponsiveContainer width="50%" height={200}>
@@ -225,7 +225,7 @@ export default function Analytics() {
       {/* Detailed Table */}
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-dark-800">
-          <h3 className="text-lg font-medium text-white">Announcement Details</h3>
+          <h3 className="text-lg font-medium text-slate-800 dark:text-white">Announcement Details</h3>
         </div>
         {loading ? (
           <div className="p-8 text-center text-dark-500">Loading...</div>
