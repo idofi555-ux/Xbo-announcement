@@ -136,10 +136,10 @@ router.get('/analytics/overview', authenticate, async (req, res) => {
 
     // Clicks over last 7 days
     const clicksTimelineResult = await pool.query(`
-      SELECT DATE(clicked_at) as date, COUNT(*) as clicks
+      SELECT DATE(clicked_at AT TIME ZONE 'UTC') as date, COUNT(*) as clicks
       FROM link_clicks
-      WHERE clicked_at >= NOW() - INTERVAL '7 days'
-      GROUP BY DATE(clicked_at)
+      WHERE clicked_at >= (CURRENT_DATE - INTERVAL '7 days')
+      GROUP BY DATE(clicked_at AT TIME ZONE 'UTC')
       ORDER BY date
     `);
 
@@ -210,12 +210,13 @@ router.get('/analytics/detailed', authenticate, async (req, res) => {
     let paramIndex = 1;
 
     if (start_date) {
-      query += ` AND a.sent_at >= $${paramIndex++}::date`;
+      // Use COALESCE to handle NULL sent_at - treat as created_at if missing
+      query += ` AND COALESCE(a.sent_at, a.created_at) >= $${paramIndex++}::timestamptz`;
       params.push(start_date);
     }
     if (end_date) {
-      // Add 1 day to include the entire end date
-      query += ` AND a.sent_at < ($${paramIndex++}::date + interval '1 day')`;
+      // Add 1 day to include the entire end date, use timestamptz for proper comparison
+      query += ` AND COALESCE(a.sent_at, a.created_at) < ($${paramIndex++}::date + interval '1 day')::timestamptz`;
       params.push(end_date);
     }
     if (campaign_id) {
@@ -223,7 +224,7 @@ router.get('/analytics/detailed', authenticate, async (req, res) => {
       params.push(campaign_id);
     }
 
-    query += ' GROUP BY a.id, c.name ORDER BY a.sent_at DESC';
+    query += ' GROUP BY a.id, c.name ORDER BY COALESCE(a.sent_at, a.created_at) DESC';
 
     const announcementsResult = await pool.query(query, params);
 
