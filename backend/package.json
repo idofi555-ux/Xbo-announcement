@@ -1,6 +1,6 @@
 {
   "name": "xbo-announcements-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "XBO Telegram Announcement System - Backend",
   "main": "server.js",
   "scripts": {
