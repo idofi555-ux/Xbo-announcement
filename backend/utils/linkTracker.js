@@ -1,5 +1,6 @@
 const { customAlphabet } = require('nanoid');
 const { pool, USE_POSTGRES } = require('../models/database');
+const { getTrackingData } = require('./geoip');
 
 // Generate short codes (6 chars, URL-safe)
 const generateShortCode = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 6);
@@ -50,7 +51,7 @@ const processContentLinks = async (content, announcementId, campaignName = null)
   return trackedLinks;
 };
 
-// Record a click
+// Record a click with geolocation and device data
 const recordClick = async (shortCode, requestInfo = {}) => {
   const linkResult = await pool.query(
     'SELECT id FROM tracked_links WHERE short_code = $1',
@@ -61,14 +62,21 @@ const recordClick = async (shortCode, requestInfo = {}) => {
 
   const link = linkResult.rows[0];
 
+  // Get geolocation and device data
+  const trackingData = await getTrackingData(requestInfo.ip, requestInfo.userAgent);
+
   await pool.query(
-    `INSERT INTO link_clicks (link_id, ip_address, user_agent, referer)
-     VALUES ($1, $2, $3, $4)`,
+    `INSERT INTO link_clicks (link_id, ip_address, user_agent, referer, country, city, device_type, browser)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       link.id,
       requestInfo.ip || null,
       requestInfo.userAgent || null,
-      requestInfo.referer || null
+      requestInfo.referer || null,
+      trackingData.country,
+      trackingData.city,
+      trackingData.deviceType,
+      trackingData.browser
     ]
   );
 

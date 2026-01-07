@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../models/database');
 const { recordClick } = require('../utils/linkTracker');
+const { getTrackingData } = require('../utils/geoip');
 
 const router = express.Router();
 
@@ -12,55 +13,58 @@ const TRANSPARENT_GIF = Buffer.from(
 
 // Pixel tracking endpoint for view counting
 router.get('/pixel/:announcementId/:channelId', async (req, res) => {
-  try {
-    const { announcementId, channelId } = req.params;
-    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
-    const userAgent = req.headers['user-agent'] || 'unknown';
+  // Return GIF immediately for fast response
+  res.set({
+    'Content-Type': 'image/gif',
+    'Content-Length': TRANSPARENT_GIF.length,
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  res.send(TRANSPARENT_GIF);
 
-    // Create a unique identifier for this viewer
-    const viewerHash = Buffer.from(`${ip}-${userAgent}`).toString('base64').substring(0, 32);
+  // Process tracking asynchronously
+  (async () => {
+    try {
+      const { announcementId, channelId } = req.params;
+      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.connection?.remoteAddress || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
 
-    // Check if this viewer already viewed this announcement on this channel
-    const existingView = await pool.query(
-      `SELECT id FROM pixel_views
-       WHERE announcement_id = $1 AND channel_id = $2 AND viewer_hash = $3`,
-      [announcementId, channelId, viewerHash]
-    );
+      // Create a unique identifier for this viewer
+      const viewerHash = Buffer.from(`${ip}-${userAgent}`).toString('base64').substring(0, 32);
 
-    if (existingView.rows.length === 0) {
-      // Record new unique view
-      await pool.query(
-        `INSERT INTO pixel_views (announcement_id, channel_id, viewer_hash, ip_address, user_agent)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [announcementId, channelId, viewerHash, ip, userAgent]
+      // Check if this viewer already viewed this announcement on this channel
+      const existingView = await pool.query(
+        `SELECT id FROM pixel_views
+         WHERE announcement_id = $1 AND channel_id = $2 AND viewer_hash = $3`,
+        [announcementId, channelId, viewerHash]
       );
 
-      // Update view count in announcement_targets
-      await pool.query(
-        `UPDATE announcement_targets
-         SET views = views + 1
-         WHERE announcement_id = $1 AND channel_id = $2`,
-        [announcementId, channelId]
-      );
+      if (existingView.rows.length === 0) {
+        // Get geolocation and device data
+        const trackingData = await getTrackingData(ip, userAgent);
 
-      console.log(`Pixel view recorded: announcement=${announcementId}, channel=${channelId}`);
+        // Record new unique view with extended data
+        await pool.query(
+          `INSERT INTO pixel_views (announcement_id, channel_id, viewer_hash, ip_address, user_agent, country, city, device_type, browser)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [announcementId, channelId, viewerHash, ip, userAgent, trackingData.country, trackingData.city, trackingData.deviceType, trackingData.browser]
+        );
+
+        // Update view count in announcement_targets
+        await pool.query(
+          `UPDATE announcement_targets
+           SET views = views + 1
+           WHERE announcement_id = $1 AND channel_id = $2`,
+          [announcementId, channelId]
+        );
+
+        console.log(`Pixel view recorded: announcement=${announcementId}, channel=${channelId}, country=${trackingData.country}`);
+      }
+    } catch (error) {
+      console.error('Pixel tracking error:', error.message);
     }
-
-    // Return 1x1 transparent GIF
-    res.set({
-      'Content-Type': 'image/gif',
-      'Content-Length': TRANSPARENT_GIF.length,
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    });
-    res.send(TRANSPARENT_GIF);
-  } catch (error) {
-    console.error('Pixel tracking error:', error.message);
-    // Still return the GIF even on error
-    res.set('Content-Type', 'image/gif');
-    res.send(TRANSPARENT_GIF);
-  }
+  })();
 });
 
 // Redirect tracked links
@@ -76,9 +80,9 @@ router.get('/:code', async (req, res) => {
 
     const link = linkResult.rows[0];
 
-    // Record the click
+    // Record the click with proper IP extraction
     await recordClick(code, {
-      ip: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+      ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.connection?.remoteAddress,
       userAgent: req.headers['user-agent'],
       referer: req.headers['referer']
     });

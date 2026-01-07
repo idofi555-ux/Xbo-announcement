@@ -132,6 +132,49 @@ const initBot = () => {
       }
     });
 
+    // Handle callback queries (inline button clicks)
+    bot.on('callback_query', async (callbackQuery) => {
+      try {
+        const data = callbackQuery.data;
+        const user = callbackQuery.from;
+        const message = callbackQuery.message;
+
+        // Check if this is a tracking callback
+        if (data && data.startsWith('track_')) {
+          const [, announcementId, channelId] = data.split('_');
+
+          // Record button click
+          await pool.query(
+            `INSERT INTO button_clicks (announcement_id, channel_id, button_text, telegram_user_id, telegram_username, telegram_first_name)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              announcementId,
+              channelId || null,
+              'More Info',
+              user.id.toString(),
+              user.username || null,
+              user.first_name || null
+            ]
+          );
+
+          console.log(`Button click recorded: announcement=${announcementId}, user=${user.username || user.id}`);
+
+          // Answer the callback query with a notification
+          await bot.answerCallbackQuery(callbackQuery.id, {
+            text: 'Thanks for your interest!',
+            show_alert: false
+          });
+        }
+      } catch (error) {
+        console.error('Callback query error:', error.message);
+        try {
+          await bot.answerCallbackQuery(callbackQuery.id);
+        } catch (e) {
+          // Ignore
+        }
+      }
+    });
+
     // Handle /stats command
     bot.onText(/\/stats/, async (msg) => {
       const chatId = msg.chat.id;
@@ -230,9 +273,11 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
   content += `<a href="${pixelUrl}">\u200B</a>`;
   console.log('Tracking pixel URL:', pixelUrl);
 
-  // Parse buttons if any
+  // Parse buttons and add tracking button
   let replyMarkup = null;
-  if (announcement.buttons && announcement.buttons !== '[]' && announcement.buttons !== 'null') {
+  const hasDefinedButtons = announcement.buttons && announcement.buttons !== '[]' && announcement.buttons !== 'null';
+
+  if (hasDefinedButtons) {
     try {
       console.log('Raw buttons from DB:', announcement.buttons);
       const buttons = JSON.parse(announcement.buttons);
@@ -264,17 +309,44 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
             };
           });
 
+          // Add tracking callback button for user engagement tracking
+          const trackingButton = {
+            text: '📩 More Info',
+            callback_data: `track_${announcement.id}_${channelId}`
+          };
+
           replyMarkup = {
-            inline_keyboard: trackedButtons.map(btn => [btn])
+            inline_keyboard: [
+              ...trackedButtons.map(btn => [btn]),
+              [trackingButton]
+            ]
           };
           console.log('Reply markup:', JSON.stringify(replyMarkup));
         } else {
-          console.log('No valid buttons after filtering, skipping reply_markup');
+          // Add tracking button even without URL buttons
+          replyMarkup = {
+            inline_keyboard: [[{
+              text: '📩 More Info',
+              callback_data: `track_${announcement.id}_${channelId}`
+            }]]
+          };
+          console.log('Added tracking-only button');
         }
       }
     } catch (e) {
       console.error('Error parsing buttons:', e);
     }
+  }
+
+  // Always add tracking button if not already set
+  if (!replyMarkup) {
+    replyMarkup = {
+      inline_keyboard: [[{
+        text: '📩 More Info',
+        callback_data: `track_${announcement.id}_${channelId}`
+      }]]
+    };
+    console.log('Added default tracking button');
   }
 
   const options = {

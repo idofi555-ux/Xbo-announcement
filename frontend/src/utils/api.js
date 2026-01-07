@@ -67,6 +67,11 @@ export const deleteCampaign = (id) => api.delete(`/campaigns/${id}`);
 export const getOverview = () => api.get('/analytics/overview');
 export const getDetailedAnalytics = (params) => api.get('/analytics/detailed', { params });
 export const getActivity = (params) => api.get('/analytics/activity', { params });
+export const getClickDetails = (params) => api.get('/analytics/clicks', { params });
+export const getViewDetails = (params) => api.get('/analytics/views', { params });
+export const getButtonClicks = (params) => api.get('/analytics/button-clicks', { params });
+export const getAggregatedAnalytics = (params) => api.get('/analytics/aggregated', { params });
+export const exportClicks = (params) => api.get('/analytics/export/clicks', { params, responseType: 'blob' });
 
 // Health check
 export const healthCheck = () => api.get('/health');

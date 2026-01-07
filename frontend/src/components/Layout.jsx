@@ -7,6 +7,7 @@ import {
   Megaphone,
   Radio,
   BarChart3,
+  MousePointerClick,
   Users,
   FolderKanban,
   Settings,
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Channels', href: '/channels', icon: Radio },
   { name: 'Campaigns', href: '/campaigns', icon: FolderKanban },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Click Details', href: '/click-details', icon: MousePointerClick },
 ];
 
 const adminNavigation = [

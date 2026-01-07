@@ -205,6 +205,8 @@ const initDatabase = async () => {
             referer TEXT,
             country TEXT,
             city TEXT,
+            device_type TEXT,
+            browser TEXT,
             clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
 
@@ -223,7 +225,22 @@ const initDatabase = async () => {
             viewer_hash TEXT NOT NULL,
             ip_address TEXT,
             user_agent TEXT,
+            country TEXT,
+            city TEXT,
+            device_type TEXT,
+            browser TEXT,
             viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS button_clicks (
+            id SERIAL PRIMARY KEY,
+            announcement_id INTEGER REFERENCES announcements(id) ON DELETE CASCADE,
+            channel_id INTEGER,
+            button_text TEXT NOT NULL,
+            telegram_user_id TEXT,
+            telegram_username TEXT,
+            telegram_first_name TEXT,
+            clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
 
           CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status);
@@ -231,6 +248,7 @@ const initDatabase = async () => {
           CREATE INDEX IF NOT EXISTS idx_link_clicks_link ON link_clicks(link_id);
           CREATE INDEX IF NOT EXISTS idx_tracked_links_code ON tracked_links(short_code);
           CREATE INDEX IF NOT EXISTS idx_pixel_views_unique ON pixel_views(announcement_id, channel_id, viewer_hash);
+          CREATE INDEX IF NOT EXISTS idx_button_clicks_announcement ON button_clicks(announcement_id);
         `);
 
         // Create default admin
@@ -327,6 +345,8 @@ const initDatabase = async () => {
           referer TEXT,
           country TEXT,
           city TEXT,
+          device_type TEXT,
+          browser TEXT,
           clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -345,7 +365,22 @@ const initDatabase = async () => {
           viewer_hash TEXT NOT NULL,
           ip_address TEXT,
           user_agent TEXT,
+          country TEXT,
+          city TEXT,
+          device_type TEXT,
+          browser TEXT,
           viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS button_clicks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          announcement_id INTEGER REFERENCES announcements(id) ON DELETE CASCADE,
+          channel_id INTEGER,
+          button_text TEXT NOT NULL,
+          telegram_user_id TEXT,
+          telegram_username TEXT,
+          telegram_first_name TEXT,
+          clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status);
@@ -353,6 +388,7 @@ const initDatabase = async () => {
         CREATE INDEX IF NOT EXISTS idx_link_clicks_link ON link_clicks(link_id);
         CREATE INDEX IF NOT EXISTS idx_tracked_links_code ON tracked_links(short_code);
         CREATE INDEX IF NOT EXISTS idx_pixel_views_unique ON pixel_views(announcement_id, channel_id, viewer_hash);
+        CREATE INDEX IF NOT EXISTS idx_button_clicks_announcement ON button_clicks(announcement_id);
       `);
 
       // Create default admin
