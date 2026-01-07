@@ -207,10 +207,21 @@ const initDatabase = async () => {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
 
+          CREATE TABLE IF NOT EXISTS pixel_views (
+            id SERIAL PRIMARY KEY,
+            announcement_id INTEGER REFERENCES announcements(id) ON DELETE CASCADE,
+            channel_id INTEGER REFERENCES channels(id) ON DELETE CASCADE,
+            viewer_hash TEXT NOT NULL,
+            ip_address TEXT,
+            user_agent TEXT,
+            viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
           CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status);
           CREATE INDEX IF NOT EXISTS idx_announcements_scheduled ON announcements(scheduled_at);
           CREATE INDEX IF NOT EXISTS idx_link_clicks_link ON link_clicks(link_id);
           CREATE INDEX IF NOT EXISTS idx_tracked_links_code ON tracked_links(short_code);
+          CREATE INDEX IF NOT EXISTS idx_pixel_views_unique ON pixel_views(announcement_id, channel_id, viewer_hash);
         `);
 
         // Create default admin
@@ -318,10 +329,21 @@ const initDatabase = async () => {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
+        CREATE TABLE IF NOT EXISTS pixel_views (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          announcement_id INTEGER REFERENCES announcements(id) ON DELETE CASCADE,
+          channel_id INTEGER REFERENCES channels(id) ON DELETE CASCADE,
+          viewer_hash TEXT NOT NULL,
+          ip_address TEXT,
+          user_agent TEXT,
+          viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status);
         CREATE INDEX IF NOT EXISTS idx_announcements_scheduled ON announcements(scheduled_at);
         CREATE INDEX IF NOT EXISTS idx_link_clicks_link ON link_clicks(link_id);
         CREATE INDEX IF NOT EXISTS idx_tracked_links_code ON tracked_links(short_code);
+        CREATE INDEX IF NOT EXISTS idx_pixel_views_unique ON pixel_views(announcement_id, channel_id, viewer_hash);
       `);
 
       // Create default admin

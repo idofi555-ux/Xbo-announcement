@@ -221,6 +221,15 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
     content = content.replace(link.original_url, link.tracked_url);
   });
 
+  // Add tracking pixel for view counting
+  const baseUrl = process.env.BASE_URL ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
+    'http://localhost:3001';
+  const pixelUrl = `${baseUrl}/api/t/pixel/${announcement.id}/${channelId}`;
+  // Add invisible link (zero-width space) that Telegram will fetch for preview
+  content += `<a href="${pixelUrl}">\u200B</a>`;
+  console.log('Tracking pixel URL:', pixelUrl);
+
   // Parse buttons if any
   let replyMarkup = null;
   if (announcement.buttons && announcement.buttons !== '[]' && announcement.buttons !== 'null') {
