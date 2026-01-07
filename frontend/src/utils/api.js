@@ -73,6 +73,12 @@ export const getButtonClicks = (params) => api.get('/analytics/button-clicks', {
 export const getAggregatedAnalytics = (params) => api.get('/analytics/aggregated', { params });
 export const exportClicks = (params) => api.get('/analytics/export/clicks', { params, responseType: 'blob' });
 
+// Insights
+export const getBestTimeInsights = () => api.get('/analytics/insights/best-time');
+export const getCampaignInsights = () => api.get('/analytics/insights/campaigns');
+export const getChannelInsights = () => api.get('/analytics/insights/channels');
+export const getRecommendations = () => api.get('/analytics/insights/recommendations');
+
 // Health check
 export const healthCheck = () => api.get('/health');
 

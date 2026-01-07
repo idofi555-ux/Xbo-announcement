@@ -13,6 +13,9 @@ const TRANSPARENT_GIF = Buffer.from(
 
 // Pixel tracking endpoint for view counting
 router.get('/pixel/:announcementId/:channelId', async (req, res) => {
+  const { announcementId, channelId } = req.params;
+  console.log(`[PIXEL] View request: announcement=${announcementId}, channel=${channelId}, ip=${req.headers['x-forwarded-for'] || req.ip}`);
+
   // Return GIF immediately for fast response
   res.set({
     'Content-Type': 'image/gif',

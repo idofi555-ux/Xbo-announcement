@@ -8,6 +8,7 @@ import {
   Radio,
   BarChart3,
   MousePointerClick,
+  Lightbulb,
   Users,
   FolderKanban,
   Settings,
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Campaigns', href: '/campaigns', icon: FolderKanban },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Click Details', href: '/click-details', icon: MousePointerClick },
+  { name: 'Insights', href: '/insights', icon: Lightbulb },
 ];
 
 const adminNavigation = [

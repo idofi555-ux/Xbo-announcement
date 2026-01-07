@@ -11,6 +11,7 @@ import Channels from './pages/Channels';
 import Campaigns from './pages/Campaigns';
 import Analytics from './pages/Analytics';
 import ClickDetails from './pages/ClickDetails';
+import Insights from './pages/Insights';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
 
@@ -66,6 +67,7 @@ function AppRoutes() {
       <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
       <Route path="/click-details" element={<ProtectedRoute><ClickDetails /></ProtectedRoute>} />
+      <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute adminOnly><Users /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       

@@ -758,4 +758,411 @@ router.get('/analytics/export/clicks', authenticate, async (req, res) => {
   }
 });
 
+// ==================== INSIGHTS ====================
+
+// Get best time to send analysis
+router.get('/analytics/insights/best-time', authenticate, async (req, res) => {
+  try {
+    // Get clicks by day of week and hour
+    let heatmapQuery;
+    if (USE_POSTGRES) {
+      heatmapQuery = `
+        SELECT
+          EXTRACT(DOW FROM clicked_at) as day_of_week,
+          EXTRACT(HOUR FROM clicked_at) as hour,
+          COUNT(*) as count
+        FROM link_clicks
+        WHERE clicked_at >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY EXTRACT(DOW FROM clicked_at), EXTRACT(HOUR FROM clicked_at)
+        ORDER BY day_of_week, hour
+      `;
+    } else {
+      heatmapQuery = `
+        SELECT
+          strftime('%w', clicked_at) as day_of_week,
+          strftime('%H', clicked_at) as hour,
+          COUNT(*) as count
+        FROM link_clicks
+        WHERE clicked_at >= date('now', '-30 days')
+        GROUP BY strftime('%w', clicked_at), strftime('%H', clicked_at)
+        ORDER BY day_of_week, hour
+      `;
+    }
+    const heatmapResult = await pool.query(heatmapQuery);
+
+    // Build heatmap data (7 days x 24 hours)
+    const heatmap = Array(7).fill(null).map(() => Array(24).fill(0));
+    let maxClicks = 0;
+    let bestDay = 0;
+    let bestHour = 0;
+
+    heatmapResult.rows.forEach(row => {
+      const day = parseInt(row.day_of_week);
+      const hour = parseInt(row.hour);
+      const count = parseInt(row.count);
+      heatmap[day][hour] = count;
+      if (count > maxClicks) {
+        maxClicks = count;
+        bestDay = day;
+        bestHour = hour;
+      }
+    });
+
+    // Get best time per channel
+    let channelBestTimeQuery;
+    if (USE_POSTGRES) {
+      channelBestTimeQuery = `
+        SELECT
+          ch.id,
+          ch.title,
+          EXTRACT(DOW FROM bc.clicked_at) as day_of_week,
+          EXTRACT(HOUR FROM bc.clicked_at) as hour,
+          COUNT(*) as count
+        FROM button_clicks bc
+        JOIN channels ch ON bc.channel_id = ch.id
+        WHERE bc.clicked_at >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY ch.id, ch.title, EXTRACT(DOW FROM bc.clicked_at), EXTRACT(HOUR FROM bc.clicked_at)
+        ORDER BY ch.id, count DESC
+      `;
+    } else {
+      channelBestTimeQuery = `
+        SELECT
+          ch.id,
+          ch.title,
+          strftime('%w', bc.clicked_at) as day_of_week,
+          strftime('%H', bc.clicked_at) as hour,
+          COUNT(*) as count
+        FROM button_clicks bc
+        JOIN channels ch ON bc.channel_id = ch.id
+        WHERE bc.clicked_at >= date('now', '-30 days')
+        GROUP BY ch.id, ch.title, strftime('%w', bc.clicked_at), strftime('%H', bc.clicked_at)
+        ORDER BY ch.id, count DESC
+      `;
+    }
+    const channelBestTimeResult = await pool.query(channelBestTimeQuery);
+
+    // Get best time for each channel (first result per channel is best)
+    const channelBestTimes = {};
+    channelBestTimeResult.rows.forEach(row => {
+      if (!channelBestTimes[row.id]) {
+        channelBestTimes[row.id] = {
+          channel_id: row.id,
+          channel_title: row.title,
+          best_day: parseInt(row.day_of_week),
+          best_hour: parseInt(row.hour),
+          clicks: parseInt(row.count)
+        };
+      }
+    });
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    res.json({
+      heatmap,
+      bestTime: {
+        day: bestDay,
+        dayName: dayNames[bestDay],
+        hour: bestHour,
+        clicks: maxClicks
+      },
+      channelBestTimes: Object.values(channelBestTimes).map(c => ({
+        ...c,
+        dayName: dayNames[c.best_day]
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching best time insights:', error);
+    res.status(500).json({ error: 'Failed to fetch best time insights' });
+  }
+});
+
+// Get campaign performance comparison
+router.get('/analytics/insights/campaigns', authenticate, async (req, res) => {
+  try {
+    const campaignsQuery = `
+      SELECT
+        c.id,
+        c.name,
+        COUNT(DISTINCT a.id) as total_announcements,
+        COALESCE(SUM(at.views), 0) as total_views,
+        (SELECT COUNT(*) FROM link_clicks lc
+         JOIN tracked_links tl ON lc.link_id = tl.id
+         JOIN announcements ann ON tl.announcement_id = ann.id
+         WHERE ann.campaign_id = c.id) as total_clicks,
+        (SELECT COUNT(DISTINCT lc.ip_address) FROM link_clicks lc
+         JOIN tracked_links tl ON lc.link_id = tl.id
+         JOIN announcements ann ON tl.announcement_id = ann.id
+         WHERE ann.campaign_id = c.id) as unique_users
+      FROM campaigns c
+      LEFT JOIN announcements a ON c.id = a.campaign_id AND a.status = 'sent'
+      LEFT JOIN announcement_targets at ON a.id = at.announcement_id
+      GROUP BY c.id, c.name
+      ORDER BY total_clicks DESC
+    `;
+    const campaignsResult = await pool.query(campaignsQuery);
+
+    const campaigns = campaignsResult.rows.map(c => ({
+      id: c.id,
+      name: c.name,
+      total_announcements: parseInt(c.total_announcements) || 0,
+      total_views: parseInt(c.total_views) || 0,
+      total_clicks: parseInt(c.total_clicks) || 0,
+      unique_users: parseInt(c.unique_users) || 0,
+      ctr: parseInt(c.total_views) > 0
+        ? ((parseInt(c.total_clicks) / parseInt(c.total_views)) * 100).toFixed(2)
+        : '0.00'
+    }));
+
+    // Find best performing campaign
+    const bestCampaign = campaigns.reduce((best, current) =>
+      (parseInt(current.total_clicks) > parseInt(best?.total_clicks || 0)) ? current : best
+    , null);
+
+    res.json({ campaigns, bestCampaign });
+  } catch (error) {
+    console.error('Error fetching campaign insights:', error);
+    res.status(500).json({ error: 'Failed to fetch campaign insights' });
+  }
+});
+
+// Get channel insights
+router.get('/analytics/insights/channels', authenticate, async (req, res) => {
+  try {
+    const channelsQuery = `
+      SELECT
+        ch.id,
+        ch.title,
+        ch.member_count,
+        COUNT(DISTINCT at.announcement_id) as total_announcements,
+        COALESCE(SUM(at.views), 0) as total_views,
+        (SELECT COUNT(*) FROM button_clicks bc WHERE bc.channel_id = ch.id) as total_button_clicks,
+        (SELECT COUNT(DISTINCT bc.telegram_user_id) FROM button_clicks bc WHERE bc.channel_id = ch.id) as unique_users
+      FROM channels ch
+      LEFT JOIN announcement_targets at ON ch.id = at.channel_id
+      LEFT JOIN announcements a ON at.announcement_id = a.id AND a.status = 'sent'
+      WHERE ch.is_active = 1
+      GROUP BY ch.id, ch.title, ch.member_count
+      ORDER BY total_button_clicks DESC
+    `;
+    const channelsResult = await pool.query(channelsQuery);
+
+    const channels = channelsResult.rows.map(c => ({
+      id: c.id,
+      title: c.title,
+      member_count: parseInt(c.member_count) || 0,
+      total_announcements: parseInt(c.total_announcements) || 0,
+      total_views: parseInt(c.total_views) || 0,
+      total_button_clicks: parseInt(c.total_button_clicks) || 0,
+      unique_users: parseInt(c.unique_users) || 0,
+      engagement_rate: parseInt(c.member_count) > 0
+        ? ((parseInt(c.unique_users) / parseInt(c.member_count)) * 100).toFixed(2)
+        : '0.00'
+    }));
+
+    // Rank by engagement
+    const rankedChannels = [...channels].sort((a, b) =>
+      parseFloat(b.engagement_rate) - parseFloat(a.engagement_rate)
+    );
+
+    res.json({ channels, rankedChannels });
+  } catch (error) {
+    console.error('Error fetching channel insights:', error);
+    res.status(500).json({ error: 'Failed to fetch channel insights' });
+  }
+});
+
+// Get smart recommendations
+router.get('/analytics/insights/recommendations', authenticate, async (req, res) => {
+  try {
+    const recommendations = [];
+
+    // Best time recommendation
+    let bestTimeQuery;
+    if (USE_POSTGRES) {
+      bestTimeQuery = `
+        SELECT
+          EXTRACT(DOW FROM clicked_at) as day_of_week,
+          EXTRACT(HOUR FROM clicked_at) as hour,
+          COUNT(*) as count
+        FROM link_clicks
+        WHERE clicked_at >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY EXTRACT(DOW FROM clicked_at), EXTRACT(HOUR FROM clicked_at)
+        ORDER BY count DESC
+        LIMIT 1
+      `;
+    } else {
+      bestTimeQuery = `
+        SELECT
+          strftime('%w', clicked_at) as day_of_week,
+          strftime('%H', clicked_at) as hour,
+          COUNT(*) as count
+        FROM link_clicks
+        WHERE clicked_at >= date('now', '-30 days')
+        GROUP BY strftime('%w', clicked_at), strftime('%H', clicked_at)
+        ORDER BY count DESC
+        LIMIT 1
+      `;
+    }
+    const bestTimeResult = await pool.query(bestTimeQuery);
+
+    if (bestTimeResult.rows.length > 0) {
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const row = bestTimeResult.rows[0];
+      recommendations.push({
+        type: 'timing',
+        icon: 'clock',
+        title: 'Best Time to Send',
+        description: `Send messages on ${dayNames[parseInt(row.day_of_week)]} at ${row.hour}:00 for maximum engagement`,
+        priority: 'high'
+      });
+    }
+
+    // Country comparison
+    const countryQuery = `
+      SELECT country, COUNT(*) as count
+      FROM link_clicks
+      WHERE country IS NOT NULL AND country != 'Unknown'
+      GROUP BY country
+      ORDER BY count DESC
+      LIMIT 5
+    `;
+    const countryResult = await pool.query(countryQuery);
+
+    if (countryResult.rows.length >= 2) {
+      const top = countryResult.rows[0];
+      const second = countryResult.rows[1];
+      const ratio = (parseInt(top.count) / parseInt(second.count)).toFixed(1);
+      recommendations.push({
+        type: 'geography',
+        icon: 'globe',
+        title: 'Top Region',
+        description: `Users from ${top.country} engage ${ratio}x more than ${second.country}`,
+        priority: 'medium'
+      });
+    }
+
+    // Device comparison
+    const deviceQuery = `
+      SELECT device_type, COUNT(*) as count
+      FROM link_clicks
+      WHERE device_type IS NOT NULL
+      GROUP BY device_type
+      ORDER BY count DESC
+    `;
+    const deviceResult = await pool.query(deviceQuery);
+
+    if (deviceResult.rows.length >= 2) {
+      const devices = deviceResult.rows;
+      const mobileCount = devices.find(d => d.device_type === 'mobile')?.count || 0;
+      const desktopCount = devices.find(d => d.device_type === 'desktop')?.count || 0;
+
+      if (parseInt(mobileCount) > 0 && parseInt(desktopCount) > 0) {
+        const ratio = (parseInt(mobileCount) / parseInt(desktopCount)).toFixed(1);
+        if (ratio > 1.5) {
+          recommendations.push({
+            type: 'device',
+            icon: 'smartphone',
+            title: 'Mobile First',
+            description: `Mobile users click ${ratio}x more than desktop - optimize for mobile viewing`,
+            priority: 'medium'
+          });
+        } else if (ratio < 0.7) {
+          recommendations.push({
+            type: 'device',
+            icon: 'monitor',
+            title: 'Desktop Focus',
+            description: `Desktop users are more engaged - ensure content works well on larger screens`,
+            priority: 'medium'
+          });
+        }
+      }
+    }
+
+    // Best channel recommendation
+    const channelQuery = `
+      SELECT
+        ch.title,
+        COUNT(bc.id) as clicks,
+        ch.member_count
+      FROM channels ch
+      LEFT JOIN button_clicks bc ON ch.id = bc.channel_id
+      WHERE ch.is_active = 1
+      GROUP BY ch.id, ch.title, ch.member_count
+      HAVING COUNT(bc.id) > 0
+      ORDER BY (COUNT(bc.id) * 1.0 / NULLIF(ch.member_count, 0)) DESC
+      LIMIT 1
+    `;
+    const channelResult = await pool.query(channelQuery);
+
+    if (channelResult.rows.length > 0) {
+      const channel = channelResult.rows[0];
+      recommendations.push({
+        type: 'channel',
+        icon: 'users',
+        title: 'Top Performing Channel',
+        description: `"${channel.title}" has the highest engagement rate - prioritize this channel`,
+        priority: 'high'
+      });
+    }
+
+    // Engagement trend
+    let trendQuery;
+    if (USE_POSTGRES) {
+      trendQuery = `
+        SELECT
+          DATE(clicked_at) as date,
+          COUNT(*) as count
+        FROM link_clicks
+        WHERE clicked_at >= CURRENT_DATE - INTERVAL '14 days'
+        GROUP BY DATE(clicked_at)
+        ORDER BY date
+      `;
+    } else {
+      trendQuery = `
+        SELECT
+          DATE(clicked_at) as date,
+          COUNT(*) as count
+        FROM link_clicks
+        WHERE clicked_at >= date('now', '-14 days')
+        GROUP BY DATE(clicked_at)
+        ORDER BY date
+      `;
+    }
+    const trendResult = await pool.query(trendQuery);
+
+    if (trendResult.rows.length >= 7) {
+      const recent = trendResult.rows.slice(-7);
+      const older = trendResult.rows.slice(0, 7);
+      const recentSum = recent.reduce((sum, r) => sum + parseInt(r.count), 0);
+      const olderSum = older.reduce((sum, r) => sum + parseInt(r.count), 0);
+
+      if (olderSum > 0) {
+        const change = ((recentSum - olderSum) / olderSum * 100).toFixed(0);
+        if (parseInt(change) > 20) {
+          recommendations.push({
+            type: 'trend',
+            icon: 'trending-up',
+            title: 'Engagement Growing',
+            description: `Engagement is up ${change}% compared to last week - keep up the good work!`,
+            priority: 'low'
+          });
+        } else if (parseInt(change) < -20) {
+          recommendations.push({
+            type: 'trend',
+            icon: 'trending-down',
+            title: 'Engagement Declining',
+            description: `Engagement is down ${Math.abs(change)}% - consider trying different content or timing`,
+            priority: 'high'
+          });
+        }
+      }
+    }
+
+    res.json({ recommendations: recommendations.slice(0, 5) });
+  } catch (error) {
+    console.error('Error fetching recommendations:', error);
+    res.status(500).json({ error: 'Failed to fetch recommendations' });
+  }
+});
+
 module.exports = router;
