@@ -357,16 +357,24 @@ router.post('/quick-replies', auth, async (req, res) => {
   try {
     const { shortcut, title, content } = req.body;
 
-    const result = await pool.query(`
+    const insertResult = await pool.query(`
       INSERT INTO quick_replies (shortcut, title, content, created_by)
       VALUES ($1, $2, $3, $4)
-      RETURNING *
     `, [shortcut, title, content, req.user.id]);
+
+    // Fetch the created record (SQLite doesn't support RETURNING *)
+    const id = insertResult.rows[0]?.id || insertResult.lastInsertRowid;
+    const result = await pool.query(`
+      SELECT qr.*, u.name as created_by_name
+      FROM quick_replies qr
+      LEFT JOIN users u ON qr.created_by = u.id
+      WHERE qr.id = $1
+    `, [id]);
 
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error creating quick reply:', error);
-    if (error.code === '23505') {
+    if (error.code === '23505' || error.message?.includes('UNIQUE constraint')) {
       return res.status(400).json({ error: 'Shortcut already exists' });
     }
     res.status(500).json({ error: 'Failed to create quick reply' });
@@ -378,20 +386,27 @@ router.put('/quick-replies/:id', auth, async (req, res) => {
     const { id } = req.params;
     const { shortcut, title, content } = req.body;
 
-    const result = await pool.query(`
+    const updateResult = await pool.query(`
       UPDATE quick_replies SET shortcut = $1, title = $2, content = $3
       WHERE id = $4
-      RETURNING *
     `, [shortcut, title, content, id]);
 
-    if (result.rows.length === 0) {
+    if (updateResult.rowCount === 0) {
       return res.status(404).json({ error: 'Quick reply not found' });
     }
+
+    // Fetch the updated record (SQLite doesn't support RETURNING *)
+    const result = await pool.query(`
+      SELECT qr.*, u.name as created_by_name
+      FROM quick_replies qr
+      LEFT JOIN users u ON qr.created_by = u.id
+      WHERE qr.id = $1
+    `, [id]);
 
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating quick reply:', error);
-    if (error.code === '23505') {
+    if (error.code === '23505' || error.message?.includes('UNIQUE constraint')) {
       return res.status(400).json({ error: 'Shortcut already exists' });
     }
     res.status(500).json({ error: 'Failed to update quick reply' });
@@ -403,10 +418,10 @@ router.delete('/quick-replies/:id', auth, async (req, res) => {
     const { id } = req.params;
 
     const result = await pool.query(`
-      DELETE FROM quick_replies WHERE id = $1 RETURNING id
+      DELETE FROM quick_replies WHERE id = $1
     `, [id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Quick reply not found' });
     }
 
