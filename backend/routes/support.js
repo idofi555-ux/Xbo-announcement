@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../models/database');
+const { pool, USE_POSTGRES } = require('../models/database');
 const auth = require('../middleware/auth');
 const { sendReplyMessage } = require('../utils/telegram');
 
@@ -54,7 +54,11 @@ router.get('/conversations', auth, async (req, res) => {
     }
 
     if (search) {
-      query += ` AND (cp.display_name ILIKE $${paramIndex} OR cp.telegram_username ILIKE $${paramIndex} OR EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.content ILIKE $${paramIndex}))`;
+      if (USE_POSTGRES) {
+        query += ` AND (cp.display_name ILIKE $${paramIndex} OR cp.telegram_username ILIKE $${paramIndex} OR EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.content ILIKE $${paramIndex}))`;
+      } else {
+        query += ` AND (LOWER(cp.display_name) LIKE LOWER($${paramIndex}) OR LOWER(cp.telegram_username) LIKE LOWER($${paramIndex}) OR EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND LOWER(m.content) LIKE LOWER($${paramIndex})))`;
+      }
       params.push(`%${search}%`);
       paramIndex++;
     }
@@ -72,13 +76,25 @@ router.get('/conversations', auth, async (req, res) => {
 // Get inbox stats (open/unassigned count)
 router.get('/inbox/stats', auth, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT
-        COUNT(*) FILTER (WHERE status = 'open') as open_count,
-        COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
-        COUNT(*) FILTER (WHERE assigned_to IS NULL AND status != 'closed') as unassigned_count
-      FROM conversations
-    `);
+    let query;
+    if (USE_POSTGRES) {
+      query = `
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'open') as open_count,
+          COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
+          COUNT(*) FILTER (WHERE assigned_to IS NULL AND status != 'closed') as unassigned_count
+        FROM conversations
+      `;
+    } else {
+      query = `
+        SELECT
+          SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_count,
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+          SUM(CASE WHEN assigned_to IS NULL AND status != 'closed' THEN 1 ELSE 0 END) as unassigned_count
+        FROM conversations
+      `;
+    }
+    const result = await pool.query(query);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error fetching inbox stats:', error);
@@ -224,7 +240,11 @@ router.get('/customers', auth, async (req, res) => {
 
     const params = [];
     if (search) {
-      query += ` AND (cp.display_name ILIKE $1 OR cp.telegram_username ILIKE $1)`;
+      if (USE_POSTGRES) {
+        query += ` AND (cp.display_name ILIKE $1 OR cp.telegram_username ILIKE $1)`;
+      } else {
+        query += ` AND (LOWER(cp.display_name) LIKE LOWER($1) OR LOWER(cp.telegram_username) LIKE LOWER($1))`;
+      }
       params.push(`%${search}%`);
     }
 
