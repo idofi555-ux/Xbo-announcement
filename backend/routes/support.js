@@ -95,7 +95,14 @@ router.get('/inbox/stats', auth, async (req, res) => {
       `;
     }
     const result = await pool.query(query);
-    res.json(result.rows[0]);
+    const stats = result.rows[0] || {};
+
+    // Ensure integer values (SQLite SUM can return strings or null)
+    res.json({
+      open_count: parseInt(stats.open_count) || 0,
+      pending_count: parseInt(stats.pending_count) || 0,
+      unassigned_count: parseInt(stats.unassigned_count) || 0
+    });
   } catch (error) {
     console.error('Error fetching inbox stats:', error);
     res.status(500).json({ error: 'Failed to fetch inbox stats' });

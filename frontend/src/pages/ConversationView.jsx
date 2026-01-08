@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../utils/api';
@@ -45,6 +45,21 @@ export default function ConversationView() {
   const [creatingTicket, setCreatingTicket] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const actionsRef = useRef(null);
+
+  // Click outside handler for dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (actionsRef.current && !actionsRef.current.contains(event.target)) {
+        setShowActions(false);
+      }
+    };
+
+    if (showActions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showActions]);
 
   useEffect(() => {
     fetchConversation();
@@ -109,18 +124,22 @@ export default function ConversationView() {
 
     setCreatingTicket(true);
     try {
+      console.log('Creating ticket for conversation:', id);
       const response = await api.post('/tickets', {
         conversation_id: parseInt(id),
         subject: ticketForm.subject,
         category: ticketForm.category,
         priority: ticketForm.priority
       });
+      console.log('Ticket created:', response.data);
       setTicket(response.data);
       setShowTicketModal(false);
       setTicketForm({ subject: '', category: 'support', priority: 'medium' });
       toast.success('Ticket created');
     } catch (error) {
-      toast.error('Failed to create ticket');
+      console.error('Failed to create ticket:', error.response?.data || error);
+      const errorMsg = error.response?.data?.error || 'Failed to create ticket';
+      toast.error(errorMsg);
     } finally {
       setCreatingTicket(false);
     }
@@ -245,16 +264,19 @@ export default function ConversationView() {
             </button>
           )}
 
-          <div className="relative">
+          <div className="relative" ref={actionsRef}>
             <button
-              onClick={() => setShowActions(!showActions)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowActions(!showActions);
+              }}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
             >
               <MoreVertical className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
 
             {showActions && (
-              <div className="absolute right-0 top-12 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 z-10">
+              <div className="absolute right-0 top-12 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 z-50">
                 <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase">Status</div>
                 {['open', 'pending', 'closed'].map((status) => (
                   <button

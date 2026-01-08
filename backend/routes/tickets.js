@@ -206,11 +206,20 @@ router.get('/stats', auth, async (req, res) => {
       ? Math.round((sla.resolution_met / sla.resolution_total) * 100)
       : 100;
 
+    // Ensure integer values (SQLite SUM can return strings or null)
+    const stats = statusResult.rows[0] || {};
     res.json({
-      ...statusResult.rows[0],
-      priority_breakdown: priorityResult.rows,
-      avg_first_response_hours: avgResult.rows[0]?.avg_first_response_hours || 0,
-      avg_resolution_hours: avgResult.rows[0]?.avg_resolution_hours || 0,
+      new_count: parseInt(stats.new_count) || 0,
+      in_progress_count: parseInt(stats.in_progress_count) || 0,
+      waiting_count: parseInt(stats.waiting_count) || 0,
+      resolved_count: parseInt(stats.resolved_count) || 0,
+      closed_count: parseInt(stats.closed_count) || 0,
+      open_count: parseInt(stats.open_count) || 0,
+      urgent_count: parseInt(stats.urgent_count) || 0,
+      breached_count: parseInt(stats.breached_count) || 0,
+      by_priority: priorityResult.rows.map(p => ({ ...p, count: parseInt(p.count) || 0 })),
+      avg_first_response_hours: parseFloat(avgResult.rows[0]?.avg_first_response_hours) || 0,
+      avg_resolution_hours: parseFloat(avgResult.rows[0]?.avg_resolution_hours) || 0,
       sla_first_response_compliance: firstResponseCompliance,
       sla_resolution_compliance: resolutionCompliance,
       sla_config: SLA_CONFIG
@@ -288,8 +297,17 @@ router.post('/', auth, async (req, res) => {
   try {
     const { conversation_id, subject, category = 'support', priority = 'medium' } = req.body;
 
+    console.log('Creating ticket:', { conversation_id, subject, category, priority, user: req.user?.id });
+
     if (!conversation_id || !subject) {
       return res.status(400).json({ error: 'Conversation ID and subject are required' });
+    }
+
+    // Verify conversation exists
+    const convCheck = await pool.query('SELECT id FROM conversations WHERE id = $1', [conversation_id]);
+    if (convCheck.rows.length === 0) {
+      console.error('Conversation not found:', conversation_id);
+      return res.status(400).json({ error: 'Conversation not found' });
     }
 
     // Calculate SLA due times
@@ -300,7 +318,14 @@ router.post('/', auth, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [conversation_id, subject, category, priority, firstResponseDue.toISOString(), resolutionDue.toISOString()]);
 
-    const ticketId = insertResult.rows[0].id;
+    // Get the ticket ID - handle both PostgreSQL and SQLite
+    const ticketId = insertResult.rows?.[0]?.id || insertResult.lastInsertRowid;
+    console.log('Ticket created with ID:', ticketId);
+
+    if (!ticketId) {
+      console.error('Failed to get ticket ID from insert result:', insertResult);
+      return res.status(500).json({ error: 'Failed to create ticket - no ID returned' });
+    }
 
     // Log activity
     await pool.query(`
@@ -317,10 +342,12 @@ router.post('/', auth, async (req, res) => {
       WHERE t.id = $1
     `, [ticketId]);
 
+    console.log('Returning ticket:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error creating ticket:', error);
-    res.status(500).json({ error: 'Failed to create ticket' });
+    console.error('Stack:', error.stack);
+    res.status(500).json({ error: 'Failed to create ticket: ' + error.message });
   }
 });
 

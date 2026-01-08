@@ -67,12 +67,27 @@ export default function Layout({ children }) {
   const fetchBadgeCounts = async () => {
     try {
       const [inboxRes, ticketRes] = await Promise.all([
-        api.get('/support/inbox/stats').catch(() => ({ data: { open_count: 0, unassigned_count: 0 } })),
-        api.get('/tickets/stats').catch(() => ({ data: { urgent_count: 0, breached_count: 0 } }))
+        api.get('/support/inbox/stats').catch((e) => {
+          console.error('Failed to fetch inbox stats:', e);
+          return { data: { open_count: 0, unassigned_count: 0 } };
+        }),
+        api.get('/tickets/stats').catch((e) => {
+          console.error('Failed to fetch ticket stats:', e);
+          return { data: { urgent_count: 0, breached_count: 0 } };
+        })
       ]);
+
+      // Convert to numbers and handle null/undefined/string values
+      const openCount = parseInt(inboxRes.data?.open_count) || 0;
+      const unassignedCount = parseInt(inboxRes.data?.unassigned_count) || 0;
+      const urgentCount = parseInt(ticketRes.data?.urgent_count) || 0;
+      const breachedCount = parseInt(ticketRes.data?.breached_count) || 0;
+
+      console.log('Badge counts:', { openCount, unassignedCount, urgentCount, breachedCount });
+
       setBadges({
-        inbox: (inboxRes.data.open_count || 0) + (inboxRes.data.unassigned_count || 0),
-        tickets: (ticketRes.data.urgent_count || 0) + (ticketRes.data.breached_count || 0)
+        inbox: openCount + unassignedCount,
+        tickets: urgentCount + breachedCount
       });
     } catch (error) {
       console.error('Failed to fetch badge counts:', error);
