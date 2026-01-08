@@ -104,9 +104,13 @@ const query = async (sql, params = []) => {
       paramIndex++;
     }
 
+    // Strip RETURNING clause for SQLite (not supported in older versions)
+    // Match RETURNING followed by anything until end of statement
+    sqliteSql = sqliteSql.replace(/\s+RETURNING\s+[\w\s,*]+$/i, '');
+
     // Handle different query types
     const trimmedSql = sqliteSql.trim().toUpperCase();
-    if (trimmedSql.startsWith('SELECT') || trimmedSql.startsWith('RETURNING')) {
+    if (trimmedSql.startsWith('SELECT')) {
       const rows = db.prepare(sqliteSql).all(...params);
       return { rows };
     } else if (trimmedSql.startsWith('INSERT')) {
