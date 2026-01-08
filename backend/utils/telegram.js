@@ -75,9 +75,15 @@ const initBot = () => {
       const chatId = msg.chat.id;
       bot.sendMessage(chatId,
         `👋 Hello! I'm the XBO Telegram Manager Bot.\n\n` +
-        `To add me to your channel or group:\n` +
+        `*Setup Instructions:*\n` +
         `1. Add me as an admin to your channel/group\n` +
         `2. Use /register to register this chat\n\n` +
+        `*IMPORTANT - Enable Message Access:*\n` +
+        `To receive ALL messages (not just commands), you must disable Group Privacy:\n` +
+        `1. Message @BotFather\n` +
+        `2. Send /setprivacy\n` +
+        `3. Select this bot\n` +
+        `4. Choose "Disable"\n\n` +
         `I will:\n` +
         `- Send announcements to your channels\n` +
         `- Track messages from group members for CRM\n\n` +
@@ -207,18 +213,34 @@ const initBot = () => {
 
     // Handle ALL incoming messages for CRM
     bot.on('message', async (msg) => {
-      // Skip commands (handled separately)
-      if (msg.text && msg.text.startsWith('/')) return;
-      // Skip bot's own messages
-      if (msg.from.is_bot) return;
-      // Skip if no text content
-      if (!msg.text) return;
-
       const chat = msg.chat;
       const user = msg.from;
+      const username = user.username ? `@${user.username}` : user.first_name || 'Unknown';
+
+      // Log every incoming message for debugging
+      console.log(`[BOT] Received message from ${username} in ${chat.title || chat.type} (${chat.id}): ${msg.text || '[non-text]'}`);
+
+      // Skip commands (handled separately)
+      if (msg.text && msg.text.startsWith('/')) {
+        console.log(`[BOT] Skipping command message`);
+        return;
+      }
+      // Skip bot's own messages
+      if (msg.from.is_bot) {
+        console.log(`[BOT] Skipping bot message`);
+        return;
+      }
+      // Skip if no text content
+      if (!msg.text) {
+        console.log(`[BOT] Skipping non-text message`);
+        return;
+      }
 
       // Only track messages from groups/supergroups
-      if (chat.type !== 'group' && chat.type !== 'supergroup') return;
+      if (chat.type !== 'group' && chat.type !== 'supergroup') {
+        console.log(`[BOT] Skipping message from ${chat.type} (not a group)`);
+        return;
+      }
 
       try {
         // Check if this chat/channel is registered
@@ -227,7 +249,10 @@ const initBot = () => {
           [chat.id.toString()]
         );
 
-        if (channelResult.rows.length === 0) return; // Not a registered channel
+        if (channelResult.rows.length === 0) {
+          console.log(`[BOT] Skipping - group ${chat.title} is not registered`);
+          return;
+        }
 
         const channelId = channelResult.rows[0].id;
 
