@@ -218,7 +218,15 @@ export default function ConversationView() {
     return null;
   }
 
-  const customerTags = conversation.customer_tags ? JSON.parse(conversation.customer_tags) : [];
+  // Safely parse customer tags
+  let customerTags = [];
+  try {
+    if (conversation.customer_tags) {
+      customerTags = JSON.parse(conversation.customer_tags);
+    }
+  } catch (e) {
+    console.error('Failed to parse customer tags:', e);
+  }
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-6">

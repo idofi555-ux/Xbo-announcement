@@ -344,7 +344,15 @@ const initDatabase = async () => {
           'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS city TEXT',
           'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS device_type TEXT',
           'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS browser TEXT',
-          'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS ip_address TEXT'
+          'ALTER TABLE pixel_views ADD COLUMN IF NOT EXISTS ip_address TEXT',
+          // Tickets table migrations
+          "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'support'",
+          'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS sla_first_response_due TIMESTAMP',
+          'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS sla_resolution_due TIMESTAMP',
+          'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS first_response_at TIMESTAMP',
+          'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP',
+          'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP',
+          'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
         ];
 
         for (const migration of migrations) {
