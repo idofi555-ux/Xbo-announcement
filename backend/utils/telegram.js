@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 const TelegramBot = require('node-telegram-bot-api');
-const { pool } = require('../models/database');
+const { pool, USE_POSTGRES } = require('../models/database');
 
 let bot = null;
 let botInitialized = false;
@@ -234,16 +234,38 @@ const initBot = () => {
         // Create or update customer profile
         const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || 'Unknown';
 
-        const customerResult = await pool.query(
-          `INSERT INTO customer_profiles (telegram_user_id, telegram_username, display_name, last_seen)
-           VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-           ON CONFLICT (telegram_user_id)
-           DO UPDATE SET telegram_username = $2, display_name = $3, last_seen = CURRENT_TIMESTAMP
-           RETURNING id`,
-          [user.id.toString(), user.username || null, displayName]
-        );
+        let customerId;
+        if (USE_POSTGRES) {
+          const customerResult = await pool.query(
+            `INSERT INTO customer_profiles (telegram_user_id, telegram_username, display_name, last_seen)
+             VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+             ON CONFLICT (telegram_user_id)
+             DO UPDATE SET telegram_username = $2, display_name = $3, last_seen = CURRENT_TIMESTAMP
+             RETURNING id`,
+            [user.id.toString(), user.username || null, displayName]
+          );
+          customerId = customerResult.rows[0].id;
+        } else {
+          // SQLite: Check if exists first, then insert or update
+          const existingCustomer = await pool.query(
+            `SELECT id FROM customer_profiles WHERE telegram_user_id = $1`,
+            [user.id.toString()]
+          );
 
-        const customerId = customerResult.rows[0].id;
+          if (existingCustomer.rows.length > 0) {
+            customerId = existingCustomer.rows[0].id;
+            await pool.query(
+              `UPDATE customer_profiles SET telegram_username = $1, display_name = $2, last_seen = CURRENT_TIMESTAMP WHERE id = $3`,
+              [user.username || null, displayName, customerId]
+            );
+          } else {
+            const insertResult = await pool.query(
+              `INSERT INTO customer_profiles (telegram_user_id, telegram_username, display_name) VALUES ($1, $2, $3)`,
+              [user.id.toString(), user.username || null, displayName]
+            );
+            customerId = insertResult.rows[0].id;
+          }
+        }
 
         // Find or create conversation for this customer in this channel
         let conversationResult = await pool.query(
@@ -257,9 +279,7 @@ const initBot = () => {
         if (conversationResult.rows.length === 0) {
           // Create new conversation
           const newConv = await pool.query(
-            `INSERT INTO conversations (channel_id, customer_id, status)
-             VALUES ($1, $2, 'open')
-             RETURNING id`,
+            `INSERT INTO conversations (channel_id, customer_id, status) VALUES ($1, $2, 'open')`,
             [channelId, customerId]
           );
           conversationId = newConv.rows[0].id;
