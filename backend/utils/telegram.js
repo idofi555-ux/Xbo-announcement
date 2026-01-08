@@ -413,22 +413,13 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
   const channel = channelResult.rows[0];
   console.log('Sending to channel:', channel.title, 'Telegram ID:', channel.telegram_id);
 
-  // Replace URLs with tracked versions
+  // Replace URLs with tracked versions (keeps link click tracking)
   let content = announcement.content;
   trackedLinks.forEach(link => {
     content = content.replace(link.original_url, link.tracked_url);
   });
 
-  // Add tracking pixel for view counting
-  const baseUrl = process.env.BASE_URL ||
-    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
-    'http://localhost:3001';
-  const pixelUrl = `${baseUrl}/t/pixel/${announcement.id}/${channelId}`;
-  // Add invisible link (zero-width space) that Telegram will fetch for preview
-  content += `<a href="${pixelUrl}">\u200B</a>`;
-  console.log('Tracking pixel URL:', pixelUrl);
-
-  // Parse buttons and add tracking button
+  // Parse admin-defined buttons only (no tracking button added)
   let replyMarkup = null;
   const hasDefinedButtons = announcement.buttons && announcement.buttons !== '[]' && announcement.buttons !== 'null';
 
@@ -441,14 +432,10 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
       if (Array.isArray(buttons) && buttons.length > 0) {
         // Filter out invalid buttons - must have non-empty text AND valid URL
         const validButtons = buttons.filter(btn => {
-          // Check text exists and is not empty
           const text = btn && btn.text ? String(btn.text).trim() : '';
-          // Check URL exists, is not empty, and looks like a URL
           const url = btn && btn.url ? String(btn.url).trim() : '';
           const hasValidText = text.length > 0;
           const hasValidUrl = url.length > 0 && (url.startsWith('http://') || url.startsWith('https://'));
-
-          console.log(`Button check: text="${text}" url="${url}" hasValidText=${hasValidText} hasValidUrl=${hasValidUrl}`);
           return hasValidText && hasValidUrl;
         });
 
@@ -464,44 +451,15 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
             };
           });
 
-          // Add tracking callback button for user engagement tracking
-          const trackingButton = {
-            text: '📩 More Info',
-            callback_data: `track_${announcement.id}_${channelId}`
-          };
-
           replyMarkup = {
-            inline_keyboard: [
-              ...trackedButtons.map(btn => [btn]),
-              [trackingButton]
-            ]
+            inline_keyboard: trackedButtons.map(btn => [btn])
           };
           console.log('Reply markup:', JSON.stringify(replyMarkup));
-        } else {
-          // Add tracking button even without URL buttons
-          replyMarkup = {
-            inline_keyboard: [[{
-              text: '📩 More Info',
-              callback_data: `track_${announcement.id}_${channelId}`
-            }]]
-          };
-          console.log('Added tracking-only button');
         }
       }
     } catch (e) {
       console.error('Error parsing buttons:', e);
     }
-  }
-
-  // Always add tracking button if not already set
-  if (!replyMarkup) {
-    replyMarkup = {
-      inline_keyboard: [[{
-        text: '📩 More Info',
-        callback_data: `track_${announcement.id}_${channelId}`
-      }]]
-    };
-    console.log('Added default tracking button');
   }
 
   const options = {
