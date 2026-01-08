@@ -286,10 +286,10 @@ export default function TicketView() {
               </h2>
             </div>
             <div className="p-4 space-y-4 max-h-[500px] overflow-y-auto">
-              {ticket.messages?.length === 0 ? (
+              {(!ticket.messages || ticket.messages.length === 0) ? (
                 <p className="text-slate-500 dark:text-slate-400 text-center py-8">No messages yet</p>
               ) : (
-                ticket.messages?.map((msg) => {
+                ticket.messages.map((msg) => {
                   const isOutgoing = msg.direction === 'out';
                   return (
                     <div
@@ -381,11 +381,11 @@ export default function TicketView() {
               </div>
 
               {/* Notes List - filter activity for notes */}
-              {ticket.activity?.filter(a => a.action === 'note_added').length === 0 ? (
+              {(!ticket.activity || ticket.activity.filter(a => a.action === 'note_added').length === 0) ? (
                 <p className="text-slate-500 dark:text-slate-400 text-center py-4 text-sm">No internal notes yet</p>
               ) : (
                 <div className="space-y-3">
-                  {ticket.activity?.filter(a => a.action === 'note_added').map((note) => (
+                  {ticket.activity.filter(a => a.action === 'note_added').map((note) => (
                     <div key={note.id} className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                       <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{note.new_value}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
@@ -407,11 +407,11 @@ export default function TicketView() {
               </h2>
             </div>
             <div className="p-4">
-              {ticket.activity?.length === 0 ? (
+              {(!ticket.activity || ticket.activity.length === 0) ? (
                 <p className="text-slate-500 dark:text-slate-400 text-center py-4">No activity yet</p>
               ) : (
                 <div className="space-y-3">
-                  {ticket.activity?.map((activity) => (
+                  {ticket.activity.map((activity) => (
                     <div key={activity.id} className="flex items-start gap-3">
                       <div className="w-2 h-2 bg-blue-500 rounded-full mt-2" />
                       <div className="flex-1">
@@ -519,7 +519,7 @@ export default function TicketView() {
                   className="input w-full"
                 >
                   <option value="">Unassigned</option>
-                  {users.map((u) => (
+                  {(users || []).map((u) => (
                     <option key={u.id} value={u.id}>{u.name}</option>
                   ))}
                 </select>
