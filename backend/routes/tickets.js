@@ -316,10 +316,13 @@ router.post('/', auth, async (req, res) => {
     const insertResult = await pool.query(`
       INSERT INTO tickets (conversation_id, subject, category, priority, sla_first_response_due, sla_resolution_due)
       VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
     `, [conversation_id, subject, category, priority, firstResponseDue.toISOString(), resolutionDue.toISOString()]);
 
     // Get the ticket ID - handle both PostgreSQL and SQLite
-    const ticketId = insertResult.rows?.[0]?.id || insertResult.lastInsertRowid;
+    // PostgreSQL returns rows[0].id, SQLite wrapper returns rows[0].id from lastInsertRowid
+    const ticketId = insertResult.rows?.[0]?.id;
+    console.log('Insert result:', JSON.stringify(insertResult));
     console.log('Ticket created with ID:', ticketId);
 
     if (!ticketId) {

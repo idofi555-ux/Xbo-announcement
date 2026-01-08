@@ -162,24 +162,30 @@ export default function ConversationView() {
     }
   };
 
-  const handleStatusChange = async (status) => {
+  const handleStatusChange = async (e, status) => {
+    e.preventDefault();
+    e.stopPropagation();
     try {
       await api.patch(`/support/conversations/${id}/status`, { status });
       setConversation({ ...conversation, status });
       setShowActions(false);
       toast.success(`Status changed to ${status}`);
     } catch (error) {
+      console.error('Failed to update status:', error);
       toast.error('Failed to update status');
     }
   };
 
-  const handleAssign = async (userId) => {
+  const handleAssign = async (e, userId) => {
+    e.preventDefault();
+    e.stopPropagation();
     try {
       await api.patch(`/support/conversations/${id}/assign`, { user_id: userId });
       fetchConversation();
       setShowActions(false);
       toast.success(userId ? 'Conversation assigned' : 'Assignment removed');
     } catch (error) {
+      console.error('Failed to assign conversation:', error);
       toast.error('Failed to assign conversation');
     }
   };
@@ -266,7 +272,9 @@ export default function ConversationView() {
 
           <div className="relative" ref={actionsRef}>
             <button
+              type="button"
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 setShowActions(!showActions);
               }}
@@ -276,12 +284,16 @@ export default function ConversationView() {
             </button>
 
             {showActions && (
-              <div className="absolute right-0 top-12 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 z-50">
+              <div
+                className="absolute right-0 top-12 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase">Status</div>
                 {['open', 'pending', 'closed'].map((status) => (
                   <button
                     key={status}
-                    onClick={() => handleStatusChange(status)}
+                    type="button"
+                    onClick={(e) => handleStatusChange(e, status)}
                     className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700 capitalize ${
                       conversation.status === status ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-slate-700 dark:text-slate-300'
                     }`}
@@ -293,7 +305,8 @@ export default function ConversationView() {
                 <div className="border-t border-slate-100 dark:border-slate-700 my-2" />
                 <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase">Assign to</div>
                 <button
-                  onClick={() => handleAssign(null)}
+                  type="button"
+                  onClick={(e) => handleAssign(e, null)}
                   className="w-full px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
                   Unassigned
@@ -301,7 +314,8 @@ export default function ConversationView() {
                 {users.map((u) => (
                   <button
                     key={u.id}
-                    onClick={() => handleAssign(u.id)}
+                    type="button"
+                    onClick={(e) => handleAssign(e, u.id)}
                     className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700 ${
                       conversation.assigned_to === u.id ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-slate-700 dark:text-slate-300'
                     }`}
