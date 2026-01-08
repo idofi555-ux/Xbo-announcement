@@ -551,6 +551,34 @@ export default function ConversationView() {
           </div>
         )}
 
+        {/* Group/Channel Info */}
+        <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+          <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3 flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Group Info
+          </h4>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center">
+                <Users className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-slate-800 dark:text-white text-sm truncate">
+                  {conversation.channel_title || 'Unknown Group'}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Telegram Group
+                </p>
+              </div>
+            </div>
+            {conversation.channel_telegram_id && (
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">
+                ID: {conversation.channel_telegram_id}
+              </p>
+            )}
+          </div>
+        </div>
+
         {/* View Full Profile */}
         <Link
           to={`/customers/${conversation.customer_id}`}

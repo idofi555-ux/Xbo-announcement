@@ -59,6 +59,8 @@ export default function TicketView() {
   const [users, setUsers] = useState([]);
   const [replyContent, setReplyContent] = useState('');
   const [sending, setSending] = useState(false);
+  const [internalNote, setInternalNote] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
 
   useEffect(() => {
     fetchTicket();
@@ -120,6 +122,60 @@ export default function TicketView() {
     }
   };
 
+  const addInternalNote = async () => {
+    if (!internalNote.trim()) return;
+
+    setAddingNote(true);
+    try {
+      await api.post(`/tickets/${id}/note`, { content: internalNote });
+      setInternalNote('');
+      fetchTicket();
+      toast.success('Note added');
+    } catch (error) {
+      toast.error('Failed to add note');
+    } finally {
+      setAddingNote(false);
+    }
+  };
+
+  const closeTicket = async () => {
+    try {
+      await api.patch(`/tickets/${id}`, { status: 'closed' });
+      fetchTicket();
+      toast.success('Ticket closed');
+    } catch (error) {
+      toast.error('Failed to close ticket');
+    }
+  };
+
+  const reopenTicket = async () => {
+    try {
+      await api.patch(`/tickets/${id}`, { status: 'in_progress' });
+      fetchTicket();
+      toast.success('Ticket reopened');
+    } catch (error) {
+      toast.error('Failed to reopen ticket');
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    try {
+      return format(new Date(dateString), 'MMM d, HH:mm');
+    } catch {
+      return '-';
+    }
+  };
+
+  const formatFullDate = (dateString) => {
+    if (!dateString) return '-';
+    try {
+      return format(new Date(dateString), 'MMM d, yyyy HH:mm');
+    } catch {
+      return '-';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -177,14 +233,35 @@ export default function TicketView() {
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <span className="text-sm font-mono text-slate-500 dark:text-slate-400">#{ticket.id}</span>
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${priorityColors[ticket.priority]}`}>
-              {ticket.priority}
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${priorityColors[ticket.priority] || priorityColors.medium}`}>
+              {ticket.priority || 'medium'}
             </span>
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[ticket.status]}`}>
-              {statusLabels[ticket.status]}
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[ticket.status] || statusColors.new}`}>
+              {statusLabels[ticket.status] || 'New'}
             </span>
           </div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-white mt-1">{ticket.subject}</h1>
+        </div>
+
+        {/* Quick Action Buttons */}
+        <div className="flex items-center gap-2">
+          {ticket.status === 'closed' ? (
+            <button
+              onClick={reopenTicket}
+              className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            >
+              <CheckCircle className="w-4 h-4" />
+              Reopen Ticket
+            </button>
+          ) : (
+            <button
+              onClick={closeTicket}
+              className="px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            >
+              <XCircle className="w-4 h-4" />
+              Close Ticket
+            </button>
+          )}
         </div>
       </div>
 
@@ -203,25 +280,36 @@ export default function TicketView() {
               {ticket.messages?.length === 0 ? (
                 <p className="text-slate-500 dark:text-slate-400 text-center py-8">No messages yet</p>
               ) : (
-                ticket.messages?.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.direction === 'out' ? 'justify-end' : 'justify-start'}`}
-                  >
+                ticket.messages?.map((msg) => {
+                  const isOutgoing = msg.direction === 'out';
+                  return (
                     <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                        msg.direction === 'out'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white'
-                      }`}
+                      key={msg.id}
+                      className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'}`}
                     >
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      <div className={`text-xs mt-1 ${msg.direction === 'out' ? 'text-blue-200' : 'text-slate-400'}`}>
-                        {msg.sender_name} - {format(new Date(msg.timestamp), 'MMM d, HH:mm')}
+                      <div className={`max-w-[80%] ${isOutgoing ? '' : ''}`}>
+                        {/* Show "Received in group" for incoming messages */}
+                        {!isOutgoing && (
+                          <div className="text-xs text-slate-400 mb-1 flex items-center gap-1">
+                            <span>From user in {ticket.channel_title || 'group'}</span>
+                          </div>
+                        )}
+                        <div
+                          className={`rounded-2xl px-4 py-2 ${
+                            isOutgoing
+                              ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
+                              : 'bg-blue-600 text-white'
+                          }`}
+                        >
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                          <div className={`text-xs mt-1 ${isOutgoing ? 'text-slate-500 dark:text-slate-400' : 'text-blue-200'}`}>
+                            {msg.sender_name || (isOutgoing ? 'Admin' : 'User')} - {formatDate(msg.timestamp)}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -253,6 +341,54 @@ export default function TicketView() {
             )}
           </div>
 
+          {/* Internal Notes */}
+          <div className="card">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                <Tag className="w-4 h-4" />
+                Internal Notes
+              </h2>
+            </div>
+            <div className="p-4">
+              {/* Add Note */}
+              <div className="flex gap-2 mb-4">
+                <textarea
+                  value={internalNote}
+                  onChange={(e) => setInternalNote(e.target.value)}
+                  placeholder="Add an internal note (not visible to customer)..."
+                  className="input flex-1 min-h-[80px] resize-none"
+                />
+                <button
+                  onClick={addInternalNote}
+                  disabled={addingNote || !internalNote.trim()}
+                  className="btn btn-secondary self-end"
+                >
+                  {addingNote ? (
+                    <div className="w-4 h-4 border-2 border-slate-400/30 border-t-slate-400 rounded-full animate-spin" />
+                  ) : (
+                    'Add Note'
+                  )}
+                </button>
+              </div>
+
+              {/* Notes List - filter activity for notes */}
+              {ticket.activity?.filter(a => a.action === 'note_added').length === 0 ? (
+                <p className="text-slate-500 dark:text-slate-400 text-center py-4 text-sm">No internal notes yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {ticket.activity?.filter(a => a.action === 'note_added').map((note) => (
+                    <div key={note.id} className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                      <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{note.new_value}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                        {note.user_name || 'System'} - {formatFullDate(note.created_at)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Activity Timeline */}
           <div className="card">
             <div className="p-4 border-b border-slate-200 dark:border-slate-700">
@@ -273,15 +409,15 @@ export default function TicketView() {
                         <p className="text-sm text-slate-700 dark:text-slate-300">
                           <span className="font-medium">{activity.user_name || 'System'}</span>
                           {' - '}
-                          {activity.action.replace('_', ' ')}
-                          {activity.new_value && (
+                          {activity.action.replace(/_/g, ' ')}
+                          {activity.new_value && activity.action !== 'note_added' && (
                             <span className="text-slate-500 dark:text-slate-400">
                               : {activity.new_value}
                             </span>
                           )}
                         </p>
                         <p className="text-xs text-slate-400 dark:text-slate-500">
-                          {format(new Date(activity.created_at), 'MMM d, yyyy HH:mm')}
+                          {formatFullDate(activity.created_at)}
                         </p>
                       </div>
                     </div>
@@ -421,14 +557,14 @@ export default function TicketView() {
               <div className="flex justify-between">
                 <span className="text-slate-500 dark:text-slate-400">Created</span>
                 <span className="text-slate-700 dark:text-slate-300">
-                  {format(new Date(ticket.created_at), 'MMM d, yyyy HH:mm')}
+                  {formatFullDate(ticket.created_at)}
                 </span>
               </div>
               {ticket.first_response_at && (
                 <div className="flex justify-between">
                   <span className="text-slate-500 dark:text-slate-400">First Response</span>
                   <span className="text-slate-700 dark:text-slate-300">
-                    {format(new Date(ticket.first_response_at), 'MMM d, yyyy HH:mm')}
+                    {formatFullDate(ticket.first_response_at)}
                   </span>
                 </div>
               )}
@@ -436,7 +572,7 @@ export default function TicketView() {
                 <div className="flex justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Resolved</span>
                   <span className="text-slate-700 dark:text-slate-300">
-                    {format(new Date(ticket.resolved_at), 'MMM d, yyyy HH:mm')}
+                    {formatFullDate(ticket.resolved_at)}
                   </span>
                 </div>
               )}
@@ -444,7 +580,7 @@ export default function TicketView() {
                 <div className="flex justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Closed</span>
                   <span className="text-slate-700 dark:text-slate-300">
-                    {format(new Date(ticket.closed_at), 'MMM d, yyyy HH:mm')}
+                    {formatFullDate(ticket.closed_at)}
                   </span>
                 </div>
               )}

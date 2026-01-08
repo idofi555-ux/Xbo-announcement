@@ -482,6 +482,40 @@ router.post('/:id/first-response', auth, async (req, res) => {
   }
 });
 
+// Add internal note to ticket
+router.post('/:id/note', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Note content is required' });
+    }
+
+    // Verify ticket exists
+    const ticketCheck = await pool.query('SELECT id FROM tickets WHERE id = $1', [id]);
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // Add note as activity
+    await pool.query(`
+      INSERT INTO ticket_activity (ticket_id, user_id, action, new_value)
+      VALUES ($1, $2, 'note_added', $3)
+    `, [id, req.user.id, content.trim()]);
+
+    // Update ticket timestamp
+    await pool.query(`
+      UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = $1
+    `, [id]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error adding note:', error);
+    res.status(500).json({ error: 'Failed to add note' });
+  }
+});
+
 // Get ticket by conversation ID
 router.get('/by-conversation/:conversationId', auth, async (req, res) => {
   try {
