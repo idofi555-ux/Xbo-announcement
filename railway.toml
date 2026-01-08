@@ -1,10 +1,11 @@
 [build]
 builder = "nixpacks"
+buildCommand = "cd backend && npm install && cd ../frontend && npm install && npm run build"
 
 [deploy]
 startCommand = "cd backend && npm start"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 100
+healthcheckTimeout = 120
 
 [[mounts]]
 source = "xbo_data"
