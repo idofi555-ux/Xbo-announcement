@@ -70,7 +70,13 @@ export default function TicketView() {
   const fetchTicket = async () => {
     try {
       const response = await api.get(`/tickets/${id}`);
-      setTicket(response.data);
+      // Ensure messages and activity are arrays
+      const ticketData = response.data;
+      if (ticketData) {
+        ticketData.messages = Array.isArray(ticketData.messages) ? ticketData.messages : [];
+        ticketData.activity = Array.isArray(ticketData.activity) ? ticketData.activity : [];
+      }
+      setTicket(ticketData);
     } catch (error) {
       console.error('Error fetching ticket:', error);
       toast.error('Failed to load ticket');
@@ -82,9 +88,11 @@ export default function TicketView() {
   const fetchUsers = async () => {
     try {
       const response = await api.get('/auth/users');
-      setUsers(response.data);
+      // Ensure we always have an array
+      setUsers(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setUsers([]); // Set empty array on error
     }
   };
 
