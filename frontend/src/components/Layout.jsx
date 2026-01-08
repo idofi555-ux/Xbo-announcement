@@ -79,14 +79,15 @@ export default function Layout({ children }) {
 
       // Convert to numbers and handle null/undefined/string values
       const openCount = parseInt(inboxRes.data?.open_count) || 0;
-      const unassignedCount = parseInt(inboxRes.data?.unassigned_count) || 0;
+      const pendingCount = parseInt(inboxRes.data?.pending_count) || 0;
       const urgentCount = parseInt(ticketRes.data?.urgent_count) || 0;
       const breachedCount = parseInt(ticketRes.data?.breached_count) || 0;
 
-      console.log('Badge counts:', { openCount, unassignedCount, urgentCount, breachedCount });
+      console.log('Badge counts:', { openCount, pendingCount, urgentCount, breachedCount });
 
+      // Badge shows open + pending conversations (active conversations needing attention)
       setBadges({
-        inbox: openCount + unassignedCount,
+        inbox: openCount + pendingCount,
         tickets: urgentCount + breachedCount
       });
     } catch (error) {

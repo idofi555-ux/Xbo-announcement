@@ -17,7 +17,8 @@ import {
   UserPlus,
   X,
   Ticket,
-  Plus
+  Plus,
+  Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -241,17 +242,18 @@ export default function ConversationView() {
             <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
           </button>
 
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-semibold">
-            {conversation.customer_name?.charAt(0).toUpperCase() || '?'}
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white">
+            <Users className="w-5 h-5" />
           </div>
 
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-slate-800 dark:text-white truncate">
-              {conversation.customer_name || 'Unknown'}
+            <h2 className="font-semibold text-slate-800 dark:text-white truncate flex items-center gap-2">
+              <span>👥</span>
+              {conversation.channel_title || 'Unknown Group'}
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
-              {conversation.channel_title}
-              {conversation.telegram_username && ` - @${conversation.telegram_username}`}
+              Conversation with {conversation.customer_name || 'Unknown'}
+              {conversation.telegram_username && ` (@${conversation.telegram_username})`}
             </p>
           </div>
 
@@ -353,11 +355,18 @@ export default function ConversationView() {
                 )}
                 <div className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[75%] ${isOutgoing ? 'order-2' : ''}`}>
+                    {/* Show "Received in group" label for incoming messages */}
+                    {!isOutgoing && (
+                      <div className="flex items-center gap-1 mb-1 text-xs text-slate-400 dark:text-slate-500">
+                        <span>👥</span>
+                        <span>Received in {conversation.channel_title || 'group'}</span>
+                      </div>
+                    )}
                     <div
                       className={`px-4 py-3 rounded-2xl ${
                         isOutgoing
-                          ? 'bg-blue-500 text-white rounded-br-md'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white rounded-bl-md'
+                          ? 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white rounded-br-md'
+                          : 'bg-blue-500 text-white rounded-bl-md'
                       }`}
                     >
                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -366,9 +375,14 @@ export default function ConversationView() {
                       <span className="text-xs text-slate-400 dark:text-slate-500">
                         {formatTime(msg.timestamp)}
                       </span>
-                      {msg.sender_name && (
+                      {isOutgoing && msg.sender_name && (
                         <span className="text-xs text-slate-400 dark:text-slate-500">
                           - {msg.sender_name}
+                        </span>
+                      )}
+                      {!isOutgoing && (
+                        <span className="text-xs text-slate-400 dark:text-slate-500">
+                          - {msg.sender_name || conversation.customer_name || 'User'}
                         </span>
                       )}
                     </div>

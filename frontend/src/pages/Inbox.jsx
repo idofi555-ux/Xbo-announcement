@@ -11,7 +11,8 @@ import {
   MessageCircle,
   CheckCircle,
   AlertCircle,
-  ChevronRight
+  ChevronRight,
+  Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -173,37 +174,39 @@ export default function Inbox() {
               to={`/inbox/${conv.id}`}
               className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
             >
-              {/* Avatar */}
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
-                {conv.customer_name?.charAt(0).toUpperCase() || '?'}
+              {/* Group Icon */}
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white flex-shrink-0">
+                <Users className="w-6 h-6" />
               </div>
 
               {/* Content */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-slate-800 dark:text-white truncate">
-                    {conv.customer_name || 'Unknown'}
+                {/* Line 1: Group Name */}
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-lg">👥</span>
+                  <span className="font-bold text-slate-800 dark:text-white truncate">
+                    {conv.channel_title || 'Unknown Group'}
                   </span>
+                </div>
+                {/* Line 2: From User */}
+                <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300 mb-1">
+                  <span className="text-slate-400 dark:text-slate-500">From:</span>
+                  <span className="font-medium">{conv.customer_name || 'Unknown'}</span>
                   {conv.telegram_username && (
-                    <span className="text-sm text-slate-500 dark:text-slate-400 truncate">
-                      @{conv.telegram_username}
-                    </span>
+                    <span className="text-slate-500 dark:text-slate-400">@{conv.telegram_username}</span>
                   )}
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 truncate">
+                {/* Line 3: Message Preview */}
+                <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
                   {conv.last_message || 'No messages'}
                 </p>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
-                    {conv.channel_title}
-                  </span>
-                  {conv.assigned_name && (
-                    <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {conv.assigned_name}
-                    </span>
-                  )}
-                </div>
+                {/* Assigned to */}
+                {conv.assigned_name && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-slate-400 dark:text-slate-500">
+                    <User className="w-3 h-3" />
+                    Assigned to {conv.assigned_name}
+                  </div>
+                )}
               </div>
 
               {/* Meta */}
