@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import {
   Ticket,
@@ -14,6 +14,15 @@ import {
   ArrowUpDown
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+
+const safeFormatDistance = (dateString) => {
+  if (!dateString) return '-';
+  try {
+    return formatDistanceToNow(new Date(dateString), { addSuffix: true });
+  } catch {
+    return '-';
+  }
+};
 
 const priorityColors = {
   low: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -49,7 +58,7 @@ const SLAIndicator = ({ status, dueTime, label }) => {
   if (!status) return null;
 
   const Icon = status === 'breached' ? XCircle : status === 'at_risk' ? AlertTriangle : CheckCircle;
-  const timeLeft = dueTime ? formatDistanceToNow(new Date(dueTime), { addSuffix: true }) : '';
+  const timeLeft = dueTime ? safeFormatDistance(dueTime) : '';
 
   return (
     <div className={`flex items-center gap-1 text-xs ${slaStatusColors[status]}`}>
@@ -60,6 +69,7 @@ const SLAIndicator = ({ status, dueTime, label }) => {
 };
 
 export default function Tickets() {
+  const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -250,7 +260,7 @@ export default function Tickets() {
                   <tr
                     key={ticket.id}
                     className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
-                    onClick={() => window.location.href = `/tickets/${ticket.id}`}
+                    onClick={() => navigate(`/tickets/${ticket.id}`)}
                   >
                     <td className="px-4 py-3">
                       <span className="text-sm font-mono text-slate-600 dark:text-slate-300">#{ticket.id}</span>
@@ -305,7 +315,7 @@ export default function Tickets() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400">
                         <Clock className="w-3 h-3" />
-                        {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
+                        {safeFormatDistance(ticket.created_at)}
                       </div>
                     </td>
                   </tr>

@@ -195,6 +195,15 @@ export default function TicketView() {
     );
   }
 
+  const formatTimeRemaining = (dateString) => {
+    if (!dateString) return '';
+    try {
+      return formatDistanceToNow(new Date(dateString), { addSuffix: true });
+    } catch {
+      return '';
+    }
+  };
+
   const SLACard = ({ title, status, dueTime, completedAt }) => {
     if (!status) return null;
     const config = slaStatusConfig[status] || slaStatusConfig.on_track;
@@ -210,9 +219,9 @@ export default function TicketView() {
         {dueTime && (
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             {completedAt ? (
-              <>Completed {format(new Date(completedAt), 'MMM d, HH:mm')}</>
+              <>Completed {formatDate(completedAt)}</>
             ) : (
-              <>Due {formatDistanceToNow(new Date(dueTime), { addSuffix: true })}</>
+              <>Due {formatTimeRemaining(dueTime)}</>
             )}
           </p>
         )}
