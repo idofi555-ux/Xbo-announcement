@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, USE_POSTGRES } = require('../models/database');
-const auth = require('../middleware/auth');
+const { authenticate: auth } = require('../middleware/auth');
 const { sendReplyMessage } = require('../utils/telegram');
 
 // Get all conversations with filters
