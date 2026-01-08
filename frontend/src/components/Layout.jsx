@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
+import api from '../utils/api';
 import {
   LayoutDashboard,
   Megaphone,
@@ -19,7 +20,10 @@ import {
   Bell,
   Search,
   Moon,
-  Sun
+  Sun,
+  Inbox,
+  MessageSquare,
+  UserCircle
 } from 'lucide-react';
 
 const navigation = [
@@ -30,6 +34,12 @@ const navigation = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Click Details', href: '/click-details', icon: MousePointerClick },
   { name: 'Insights', href: '/insights', icon: Lightbulb },
+];
+
+const supportNavigation = [
+  { name: 'Inbox', href: '/inbox', icon: Inbox, showBadge: true },
+  { name: 'Customers', href: '/customers', icon: UserCircle },
+  { name: 'Quick Replies', href: '/quick-replies', icon: MessageSquare },
 ];
 
 const adminNavigation = [
@@ -43,6 +53,23 @@ export default function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [inboxCount, setInboxCount] = useState(0);
+
+  useEffect(() => {
+    fetchInboxCount();
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchInboxCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchInboxCount = async () => {
+    try {
+      const response = await api.get('/support/inbox/stats');
+      setInboxCount(response.data.open_count + response.data.unassigned_count);
+    } catch (error) {
+      console.error('Failed to fetch inbox count:', error);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -64,7 +91,16 @@ export default function Layout({ children }) {
         }`}
       >
         <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-        <span className="font-medium text-sm">{item.name}</span>
+        <span className="font-medium text-sm flex-1">{item.name}</span>
+        {item.showBadge && inboxCount > 0 && (
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+            isActive
+              ? 'bg-white/20 text-white'
+              : 'bg-red-500 text-white'
+          }`}>
+            {inboxCount > 99 ? '99+' : inboxCount}
+          </span>
+        )}
       </Link>
     );
   };
@@ -79,7 +115,7 @@ export default function Layout({ children }) {
           </div>
           <div>
             <h1 className="font-bold text-lg text-slate-800 dark:text-white">XBO</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 -mt-0.5">Announcements</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 -mt-0.5">Telegram Manager</p>
           </div>
         </div>
       )}
@@ -103,9 +139,14 @@ export default function Layout({ children }) {
           <NavLink key={item.name} item={item} mobile={mobile} />
         ))}
 
+        <p className="px-3 py-2 mt-4 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Support</p>
+        {supportNavigation.map((item) => (
+          <NavLink key={item.name} item={item} mobile={mobile} />
+        ))}
+
         {isAdmin && (
           <>
-            <p className="px-3 py-2 mt-4 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Settings</p>
+            <p className="px-3 py-2 mt-4 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Admin</p>
             {adminNavigation.map((item) => (
               <NavLink key={item.name} item={item} mobile={mobile} />
             ))}

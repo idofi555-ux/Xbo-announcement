@@ -9,7 +9,7 @@ const path = require('path');
 const cron = require('node-cron');
 
 // Log startup info
-console.log('=== XBO Announcements Server Starting ===');
+console.log('=== XBO Telegram Manager Server Starting ===');
 console.log('Time:', new Date().toISOString());
 console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV || 'development');
@@ -27,6 +27,7 @@ const channelRoutes = require('./routes/channels');
 const announcementRoutes = require('./routes/announcements');
 const analyticsRoutes = require('./routes/analytics');
 const trackerRoutes = require('./routes/tracker');
+const supportRoutes = require('./routes/support');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -75,6 +76,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/channels', channelRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api', analyticsRoutes);
+app.use('/api/support', supportRoutes);
 
 // Link tracker (short URLs)
 app.use('/t', trackerRoutes);
@@ -231,7 +233,7 @@ const startServer = async () => {
     console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
-║   🚀 XBO Announcements Server                             ║
+║   🚀 XBO Telegram Manager Server                          ║
 ║                                                           ║
 ║   URL:        http://0.0.0.0:${PORT}                        ║
 ║   Health:     http://0.0.0.0:${PORT}/api/health             ║

@@ -44,7 +44,7 @@ export default function Login() {
               <Zap className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-slate-800">Welcome back</h1>
-            <p className="text-slate-500 mt-1">Sign in to XBO Announcements</p>
+            <p className="text-slate-500 mt-1">Sign in to XBO Telegram Manager</p>
           </div>
 
           {/* Error Alert */}
@@ -114,7 +114,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-sm text-slate-400 mt-6">
-          XBO Announcements System
+          XBO Telegram Manager
         </p>
       </div>
     </div>

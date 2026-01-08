@@ -249,6 +249,63 @@ const initDatabase = async () => {
           CREATE INDEX IF NOT EXISTS idx_tracked_links_code ON tracked_links(short_code);
           CREATE INDEX IF NOT EXISTS idx_pixel_views_unique ON pixel_views(announcement_id, channel_id, viewer_hash);
           CREATE INDEX IF NOT EXISTS idx_button_clicks_announcement ON button_clicks(announcement_id);
+
+          -- CRM/Support Module Tables
+          CREATE TABLE IF NOT EXISTS customer_profiles (
+            id SERIAL PRIMARY KEY,
+            telegram_user_id TEXT UNIQUE NOT NULL,
+            telegram_username TEXT,
+            display_name TEXT,
+            tags TEXT DEFAULT '[]',
+            notes TEXT,
+            first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS conversations (
+            id SERIAL PRIMARY KEY,
+            channel_id INTEGER REFERENCES channels(id) ON DELETE CASCADE,
+            customer_id INTEGER REFERENCES customer_profiles(id) ON DELETE CASCADE,
+            status TEXT DEFAULT 'open' CHECK(status IN ('open', 'pending', 'closed')),
+            assigned_to INTEGER REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS messages (
+            id SERIAL PRIMARY KEY,
+            conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+            telegram_message_id TEXT,
+            direction TEXT CHECK(direction IN ('in', 'out')),
+            content TEXT NOT NULL,
+            sender_name TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS quick_replies (
+            id SERIAL PRIMARY KEY,
+            shortcut TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_by INTEGER REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS tickets (
+            id SERIAL PRIMARY KEY,
+            conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+            subject TEXT NOT NULL,
+            status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'resolved', 'closed')),
+            priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high', 'urgent')),
+            assigned_to INTEGER REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            closed_at TIMESTAMP
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_conversations_status ON conversations(status);
+          CREATE INDEX IF NOT EXISTS idx_conversations_channel ON conversations(channel_id);
+          CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+          CREATE INDEX IF NOT EXISTS idx_customer_profiles_telegram ON customer_profiles(telegram_user_id);
         `);
 
         // Run migrations to add missing columns
@@ -426,6 +483,63 @@ const initDatabase = async () => {
         CREATE INDEX IF NOT EXISTS idx_tracked_links_code ON tracked_links(short_code);
         CREATE INDEX IF NOT EXISTS idx_pixel_views_unique ON pixel_views(announcement_id, channel_id, viewer_hash);
         CREATE INDEX IF NOT EXISTS idx_button_clicks_announcement ON button_clicks(announcement_id);
+
+        -- CRM/Support Module Tables
+        CREATE TABLE IF NOT EXISTS customer_profiles (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          telegram_user_id TEXT UNIQUE NOT NULL,
+          telegram_username TEXT,
+          display_name TEXT,
+          tags TEXT DEFAULT '[]',
+          notes TEXT,
+          first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_seen DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS conversations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          channel_id INTEGER REFERENCES channels(id) ON DELETE CASCADE,
+          customer_id INTEGER REFERENCES customer_profiles(id) ON DELETE CASCADE,
+          status TEXT DEFAULT 'open' CHECK(status IN ('open', 'pending', 'closed')),
+          assigned_to INTEGER REFERENCES users(id),
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+          telegram_message_id TEXT,
+          direction TEXT CHECK(direction IN ('in', 'out')),
+          content TEXT NOT NULL,
+          sender_name TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS quick_replies (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          shortcut TEXT UNIQUE NOT NULL,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          created_by INTEGER REFERENCES users(id),
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS tickets (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+          subject TEXT NOT NULL,
+          status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'resolved', 'closed')),
+          priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high', 'urgent')),
+          assigned_to INTEGER REFERENCES users(id),
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          closed_at DATETIME
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_conversations_status ON conversations(status);
+        CREATE INDEX IF NOT EXISTS idx_conversations_channel ON conversations(channel_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+        CREATE INDEX IF NOT EXISTS idx_customer_profiles_telegram ON customer_profiles(telegram_user_id);
       `);
 
       // Run migrations to add missing columns to existing tables

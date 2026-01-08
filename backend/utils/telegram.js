@@ -74,10 +74,13 @@ const initBot = () => {
     bot.onText(/\/start/, (msg) => {
       const chatId = msg.chat.id;
       bot.sendMessage(chatId,
-        `👋 Hello! I'm the XBO Announcements Bot.\n\n` +
+        `👋 Hello! I'm the XBO Telegram Manager Bot.\n\n` +
         `To add me to your channel or group:\n` +
         `1. Add me as an admin to your channel/group\n` +
         `2. Use /register to register this chat\n\n` +
+        `I will:\n` +
+        `- Send announcements to your channels\n` +
+        `- Track messages from group members for CRM\n\n` +
         `Chat ID: \`${chatId}\``,
         { parse_mode: 'Markdown' }
       ).catch(err => console.error('Error sending start message:', err.message));
@@ -199,6 +202,86 @@ const initBot = () => {
         } catch (e) {
           // Ignore
         }
+      }
+    });
+
+    // Handle ALL incoming messages for CRM
+    bot.on('message', async (msg) => {
+      // Skip commands (handled separately)
+      if (msg.text && msg.text.startsWith('/')) return;
+      // Skip bot's own messages
+      if (msg.from.is_bot) return;
+      // Skip if no text content
+      if (!msg.text) return;
+
+      const chat = msg.chat;
+      const user = msg.from;
+
+      // Only track messages from groups/supergroups
+      if (chat.type !== 'group' && chat.type !== 'supergroup') return;
+
+      try {
+        // Check if this chat/channel is registered
+        const channelResult = await pool.query(
+          'SELECT id FROM channels WHERE telegram_id = $1',
+          [chat.id.toString()]
+        );
+
+        if (channelResult.rows.length === 0) return; // Not a registered channel
+
+        const channelId = channelResult.rows[0].id;
+
+        // Create or update customer profile
+        const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || 'Unknown';
+
+        const customerResult = await pool.query(
+          `INSERT INTO customer_profiles (telegram_user_id, telegram_username, display_name, last_seen)
+           VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+           ON CONFLICT (telegram_user_id)
+           DO UPDATE SET telegram_username = $2, display_name = $3, last_seen = CURRENT_TIMESTAMP
+           RETURNING id`,
+          [user.id.toString(), user.username || null, displayName]
+        );
+
+        const customerId = customerResult.rows[0].id;
+
+        // Find or create conversation for this customer in this channel
+        let conversationResult = await pool.query(
+          `SELECT id FROM conversations
+           WHERE channel_id = $1 AND customer_id = $2 AND status != 'closed'
+           ORDER BY created_at DESC LIMIT 1`,
+          [channelId, customerId]
+        );
+
+        let conversationId;
+        if (conversationResult.rows.length === 0) {
+          // Create new conversation
+          const newConv = await pool.query(
+            `INSERT INTO conversations (channel_id, customer_id, status)
+             VALUES ($1, $2, 'open')
+             RETURNING id`,
+            [channelId, customerId]
+          );
+          conversationId = newConv.rows[0].id;
+        } else {
+          conversationId = conversationResult.rows[0].id;
+          // Update conversation timestamp
+          await pool.query(
+            `UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [conversationId]
+          );
+        }
+
+        // Save the message
+        await pool.query(
+          `INSERT INTO messages (conversation_id, telegram_message_id, direction, content, sender_name)
+           VALUES ($1, $2, 'in', $3, $4)`,
+          [conversationId, msg.message_id.toString(), msg.text, displayName]
+        );
+
+        console.log(`[CRM] Message saved from ${displayName} in ${chat.title}`);
+      } catch (error) {
+        console.error('[CRM] Error saving message:', error.message);
       }
     });
 
@@ -472,12 +555,36 @@ const stopBot = () => {
   }
 };
 
+// Send a reply message to a channel (for CRM)
+const sendReplyMessage = async (channelTelegramId, content, replyToMessageId = null) => {
+  if (!bot) {
+    throw new Error('Telegram bot not initialized');
+  }
+
+  const options = {
+    parse_mode: 'HTML'
+  };
+
+  if (replyToMessageId) {
+    options.reply_to_message_id = replyToMessageId;
+  }
+
+  try {
+    const message = await bot.sendMessage(channelTelegramId, content, options);
+    return message;
+  } catch (error) {
+    console.error('Error sending reply:', error.message);
+    throw error;
+  }
+};
+
 module.exports = {
   initBot,
   getBot,
   getBotStatus,
   isBotReady,
   sendAnnouncement,
+  sendReplyMessage,
   updateChannelStats,
   processUpdate,
   stopBot

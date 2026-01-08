@@ -14,6 +14,11 @@ import ClickDetails from './pages/ClickDetails';
 import Insights from './pages/Insights';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import Inbox from './pages/Inbox';
+import ConversationView from './pages/ConversationView';
+import Customers from './pages/Customers';
+import CustomerDetail from './pages/CustomerDetail';
+import QuickReplies from './pages/QuickReplies';
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading, isAdmin } = useAuth();
@@ -68,9 +73,14 @@ function AppRoutes() {
       <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
       <Route path="/click-details" element={<ProtectedRoute><ClickDetails /></ProtectedRoute>} />
       <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+      <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
+      <Route path="/inbox/:id" element={<ProtectedRoute><ConversationView /></ProtectedRoute>} />
+      <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+      <Route path="/customers/:id" element={<ProtectedRoute><CustomerDetail /></ProtectedRoute>} />
+      <Route path="/quick-replies" element={<ProtectedRoute><QuickReplies /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute adminOnly><Users /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-      
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
