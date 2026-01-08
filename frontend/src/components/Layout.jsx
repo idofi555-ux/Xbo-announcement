@@ -23,7 +23,8 @@ import {
   Sun,
   Inbox,
   MessageSquare,
-  UserCircle
+  UserCircle,
+  Ticket
 } from 'lucide-react';
 
 const navigation = [
@@ -37,7 +38,8 @@ const navigation = [
 ];
 
 const supportNavigation = [
-  { name: 'Inbox', href: '/inbox', icon: Inbox, showBadge: true },
+  { name: 'Inbox', href: '/inbox', icon: Inbox, badgeKey: 'inbox' },
+  { name: 'Tickets', href: '/tickets', icon: Ticket, badgeKey: 'tickets' },
   { name: 'Customers', href: '/customers', icon: UserCircle },
   { name: 'Quick Replies', href: '/quick-replies', icon: MessageSquare },
 ];
@@ -53,21 +55,27 @@ export default function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [inboxCount, setInboxCount] = useState(0);
+  const [badges, setBadges] = useState({ inbox: 0, tickets: 0 });
 
   useEffect(() => {
-    fetchInboxCount();
+    fetchBadgeCounts();
     // Refresh count every 30 seconds
-    const interval = setInterval(fetchInboxCount, 30000);
+    const interval = setInterval(fetchBadgeCounts, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const fetchInboxCount = async () => {
+  const fetchBadgeCounts = async () => {
     try {
-      const response = await api.get('/support/inbox/stats');
-      setInboxCount(response.data.open_count + response.data.unassigned_count);
+      const [inboxRes, ticketRes] = await Promise.all([
+        api.get('/support/inbox/stats').catch(() => ({ data: { open_count: 0, unassigned_count: 0 } })),
+        api.get('/tickets/stats').catch(() => ({ data: { urgent_count: 0, breached_count: 0 } }))
+      ]);
+      setBadges({
+        inbox: (inboxRes.data.open_count || 0) + (inboxRes.data.unassigned_count || 0),
+        tickets: (ticketRes.data.urgent_count || 0) + (ticketRes.data.breached_count || 0)
+      });
     } catch (error) {
-      console.error('Failed to fetch inbox count:', error);
+      console.error('Failed to fetch badge counts:', error);
     }
   };
 
@@ -79,6 +87,7 @@ export default function Layout({ children }) {
   const NavLink = ({ item, mobile = false }) => {
     const isActive = location.pathname === item.href ||
       (item.href !== '/' && location.pathname.startsWith(item.href));
+    const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
 
     return (
       <Link
@@ -92,13 +101,13 @@ export default function Layout({ children }) {
       >
         <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
         <span className="font-medium text-sm flex-1">{item.name}</span>
-        {item.showBadge && inboxCount > 0 && (
+        {badgeCount > 0 && (
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
             isActive
               ? 'bg-white/20 text-white'
-              : 'bg-red-500 text-white'
+              : item.badgeKey === 'tickets' ? 'bg-orange-500 text-white' : 'bg-red-500 text-white'
           }`}>
-            {inboxCount > 99 ? '99+' : inboxCount}
+            {badgeCount > 99 ? '99+' : badgeCount}
           </span>
         )}
       </Link>

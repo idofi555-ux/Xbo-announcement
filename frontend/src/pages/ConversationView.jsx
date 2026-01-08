@@ -15,7 +15,9 @@ import {
   MessageSquare,
   Zap,
   UserPlus,
-  X
+  X,
+  Ticket,
+  Plus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -37,6 +39,10 @@ export default function ConversationView() {
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [users, setUsers] = useState([]);
   const [showActions, setShowActions] = useState(false);
+  const [ticket, setTicket] = useState(null);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [ticketForm, setTicketForm] = useState({ subject: '', category: 'support', priority: 'medium' });
+  const [creatingTicket, setCreatingTicket] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -44,6 +50,7 @@ export default function ConversationView() {
     fetchConversation();
     fetchQuickReplies();
     fetchUsers();
+    fetchTicket();
   }, [id]);
 
   useEffect(() => {
@@ -81,6 +88,41 @@ export default function ConversationView() {
       setUsers(response.data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
+    }
+  };
+
+  const fetchTicket = async () => {
+    try {
+      const response = await api.get(`/tickets/by-conversation/${id}`);
+      setTicket(response.data);
+    } catch (error) {
+      console.error('Failed to fetch ticket:', error);
+    }
+  };
+
+  const createTicket = async (e) => {
+    e.preventDefault();
+    if (!ticketForm.subject.trim()) {
+      toast.error('Subject is required');
+      return;
+    }
+
+    setCreatingTicket(true);
+    try {
+      const response = await api.post('/tickets', {
+        conversation_id: parseInt(id),
+        subject: ticketForm.subject,
+        category: ticketForm.category,
+        priority: ticketForm.priority
+      });
+      setTicket(response.data);
+      setShowTicketModal(false);
+      setTicketForm({ subject: '', category: 'support', priority: 'medium' });
+      toast.success('Ticket created');
+    } catch (error) {
+      toast.error('Failed to create ticket');
+    } finally {
+      setCreatingTicket(false);
     }
   };
 
@@ -183,6 +225,25 @@ export default function ConversationView() {
           <span className={`badge ${statusColors[conversation.status]}`}>
             {conversation.status}
           </span>
+
+          {/* Ticket Button */}
+          {ticket ? (
+            <Link
+              to={`/tickets/${ticket.id}`}
+              className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg text-sm font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
+            >
+              <Ticket className="w-4 h-4" />
+              #{ticket.id}
+            </Link>
+          ) : (
+            <button
+              onClick={() => setShowTicketModal(true)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Create Ticket
+            </button>
+          )}
 
           <div className="relative">
             <button
@@ -441,6 +502,97 @@ export default function ConversationView() {
           View Full Profile
         </Link>
       </div>
+
+      {/* Create Ticket Modal */}
+      {showTicketModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowTicketModal(false)} />
+          <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                <Ticket className="w-5 h-5 text-purple-600" />
+                Create Ticket
+              </h2>
+              <button
+                onClick={() => setShowTicketModal(false)}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <form onSubmit={createTicket} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Subject *
+                </label>
+                <input
+                  type="text"
+                  value={ticketForm.subject}
+                  onChange={(e) => setTicketForm({ ...ticketForm, subject: e.target.value })}
+                  placeholder="Brief description of the issue"
+                  className="input w-full"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Category
+                </label>
+                <select
+                  value={ticketForm.category}
+                  onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
+                  className="input w-full"
+                >
+                  <option value="support">Support</option>
+                  <option value="sales">Sales</option>
+                  <option value="technical">Technical</option>
+                  <option value="billing">Billing</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Priority
+                </label>
+                <select
+                  value={ticketForm.priority}
+                  onChange={(e) => setTicketForm({ ...ticketForm, priority: e.target.value })}
+                  className="input w-full"
+                >
+                  <option value="low">Low - 48 hour resolution</option>
+                  <option value="medium">Medium - 24 hour resolution</option>
+                  <option value="high">High - 8 hour resolution</option>
+                  <option value="urgent">Urgent - 2 hour resolution</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowTicketModal(false)}
+                  className="btn btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingTicket || !ticketForm.subject.trim()}
+                  className="btn btn-primary flex-1"
+                >
+                  {creatingTicket ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Ticket className="w-4 h-4" />
+                  )}
+                  Create Ticket
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

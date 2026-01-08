@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getOverview } from '../utils/api';
-import { 
-  Megaphone, Radio, MousePointerClick, Eye, 
+import api, { getOverview } from '../utils/api';
+import {
+  Megaphone, Radio, MousePointerClick, Eye,
   TrendingUp, ArrowRight, Clock, Send, Plus,
-  ArrowUpRight, ArrowDownRight, Bell
+  ArrowUpRight, ArrowDownRight, Bell, Ticket,
+  AlertTriangle, CheckCircle, Timer
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
+  const [ticketStats, setTicketStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,8 +21,12 @@ export default function Dashboard() {
 
   const loadData = async () => {
     try {
-      const { data } = await getOverview();
-      setData(data);
+      const [overviewRes, ticketRes] = await Promise.all([
+        getOverview(),
+        api.get('/tickets/stats').catch(() => ({ data: null }))
+      ]);
+      setData(overviewRes.data);
+      setTicketStats(ticketRes.data);
     } catch (error) {
       console.error('Failed to load dashboard:', error);
     } finally {
@@ -251,6 +257,178 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Support & Tickets Section */}
+      {ticketStats && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+          {/* Ticket Stats Card */}
+          <div className="card p-4 lg:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Support Tickets</h2>
+                <p className="text-sm text-slate-500">Current ticket status</p>
+              </div>
+              <Link to="/tickets" className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1">
+                View all <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{ticketStats.open_count || 0}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Open Tickets</p>
+              </div>
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{ticketStats.urgent_count || 0}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Urgent</p>
+              </div>
+              <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl">
+                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{ticketStats.breached_count || 0}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">SLA Breached</p>
+              </div>
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  {ticketStats.avg_first_response_hours ? `${ticketStats.avg_first_response_hours.toFixed(1)}h` : '-'}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Avg Response</p>
+              </div>
+            </div>
+          </div>
+
+          {/* SLA Compliance Card */}
+          <div className="card p-4 lg:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white">SLA Compliance</h2>
+                <p className="text-sm text-slate-500">Service level performance</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-slate-600 dark:text-slate-400">First Response</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-white">
+                    {ticketStats.sla_first_response_compliance || 100}%
+                  </span>
+                </div>
+                <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      (ticketStats.sla_first_response_compliance || 100) >= 90 ? 'bg-green-500' :
+                      (ticketStats.sla_first_response_compliance || 100) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${ticketStats.sla_first_response_compliance || 100}%` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-slate-600 dark:text-slate-400">Resolution</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-white">
+                    {ticketStats.sla_resolution_compliance || 100}%
+                  </span>
+                </div>
+                <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      (ticketStats.sla_resolution_compliance || 100) >= 90 ? 'bg-green-500' :
+                      (ticketStats.sla_resolution_compliance || 100) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${ticketStats.sla_resolution_compliance || 100}%` }}
+                  />
+                </div>
+              </div>
+              <div className="pt-2 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span> Good (&ge;90%)
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-yellow-500 rounded-full"></span> At Risk
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span> Critical
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tickets by Priority */}
+          <div className="card p-4 lg:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white">By Priority</h2>
+                <p className="text-sm text-slate-500">Open ticket distribution</p>
+              </div>
+            </div>
+            {ticketStats.by_priority && ticketStats.by_priority.length > 0 ? (
+              <div className="flex items-center justify-center">
+                <ResponsiveContainer width="100%" height={160}>
+                  <PieChart>
+                    <Pie
+                      data={ticketStats.by_priority}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      dataKey="count"
+                      nameKey="priority"
+                    >
+                      {ticketStats.by_priority.map((entry, index) => (
+                        <Cell
+                          key={entry.priority}
+                          fill={
+                            entry.priority === 'urgent' ? '#ef4444' :
+                            entry.priority === 'high' ? '#f97316' :
+                            entry.priority === 'medium' ? '#eab308' : '#22c55e'
+                          }
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        padding: '8px 12px'
+                      }}
+                      formatter={(value, name) => [value, name.charAt(0).toUpperCase() + name.slice(1)]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-40 flex items-center justify-center text-slate-400">
+                <div className="text-center">
+                  <Ticket className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                  <p className="text-sm">No open tickets</p>
+                </div>
+              </div>
+            )}
+            {ticketStats.by_priority && ticketStats.by_priority.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-3 mt-2">
+                {ticketStats.by_priority.map((item) => (
+                  <span
+                    key={item.priority}
+                    className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{
+                        backgroundColor:
+                          item.priority === 'urgent' ? '#ef4444' :
+                          item.priority === 'high' ? '#f97316' :
+                          item.priority === 'medium' ? '#eab308' : '#22c55e'
+                      }}
+                    ></span>
+                    {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}: {item.count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Recent Announcements */}
       <div className="card overflow-hidden">

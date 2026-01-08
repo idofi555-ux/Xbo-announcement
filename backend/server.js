@@ -28,6 +28,7 @@ const announcementRoutes = require('./routes/announcements');
 const analyticsRoutes = require('./routes/analytics');
 const trackerRoutes = require('./routes/tracker');
 const supportRoutes = require('./routes/support');
+const ticketRoutes = require('./routes/tickets');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -77,6 +78,7 @@ app.use('/api/channels', channelRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api', analyticsRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/tickets', ticketRoutes);
 
 // Link tracker (short URLs)
 app.use('/t', trackerRoutes);

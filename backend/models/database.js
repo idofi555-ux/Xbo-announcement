@@ -299,12 +299,32 @@ const initDatabase = async () => {
             id SERIAL PRIMARY KEY,
             conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
             subject TEXT NOT NULL,
-            status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'resolved', 'closed')),
+            category TEXT DEFAULT 'support' CHECK(category IN ('support', 'sales', 'technical', 'billing')),
+            status TEXT DEFAULT 'new' CHECK(status IN ('new', 'in_progress', 'waiting_customer', 'resolved', 'closed')),
             priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high', 'urgent')),
             assigned_to INTEGER REFERENCES users(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            closed_at TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            first_response_at TIMESTAMP,
+            resolved_at TIMESTAMP,
+            closed_at TIMESTAMP,
+            sla_first_response_due TIMESTAMP,
+            sla_resolution_due TIMESTAMP
           );
+
+          CREATE TABLE IF NOT EXISTS ticket_activity (
+            id SERIAL PRIMARY KEY,
+            ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,
+            user_id INTEGER REFERENCES users(id),
+            action TEXT NOT NULL,
+            old_value TEXT,
+            new_value TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+          CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority);
+          CREATE INDEX IF NOT EXISTS idx_ticket_activity_ticket ON ticket_activity(ticket_id);
 
           CREATE INDEX IF NOT EXISTS idx_conversations_status ON conversations(status);
           CREATE INDEX IF NOT EXISTS idx_conversations_channel ON conversations(channel_id);
@@ -533,13 +553,32 @@ const initDatabase = async () => {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
           subject TEXT NOT NULL,
-          status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'resolved', 'closed')),
+          category TEXT DEFAULT 'support' CHECK(category IN ('support', 'sales', 'technical', 'billing')),
+          status TEXT DEFAULT 'new' CHECK(status IN ('new', 'in_progress', 'waiting_customer', 'resolved', 'closed')),
           priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high', 'urgent')),
           assigned_to INTEGER REFERENCES users(id),
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          closed_at DATETIME
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          first_response_at DATETIME,
+          resolved_at DATETIME,
+          closed_at DATETIME,
+          sla_first_response_due DATETIME,
+          sla_resolution_due DATETIME
         );
 
+        CREATE TABLE IF NOT EXISTS ticket_activity (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,
+          user_id INTEGER REFERENCES users(id),
+          action TEXT NOT NULL,
+          old_value TEXT,
+          new_value TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+        CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority);
+        CREATE INDEX IF NOT EXISTS idx_ticket_activity_ticket ON ticket_activity(ticket_id);
         CREATE INDEX IF NOT EXISTS idx_conversations_status ON conversations(status);
         CREATE INDEX IF NOT EXISTS idx_conversations_channel ON conversations(channel_id);
         CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);

@@ -19,6 +19,8 @@ import ConversationView from './pages/ConversationView';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
 import QuickReplies from './pages/QuickReplies';
+import Tickets from './pages/Tickets';
+import TicketView from './pages/TicketView';
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading, isAdmin } = useAuth();
@@ -78,6 +80,8 @@ function AppRoutes() {
       <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
       <Route path="/customers/:id" element={<ProtectedRoute><CustomerDetail /></ProtectedRoute>} />
       <Route path="/quick-replies" element={<ProtectedRoute><QuickReplies /></ProtectedRoute>} />
+      <Route path="/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
+      <Route path="/tickets/:id" element={<ProtectedRoute><TicketView /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute adminOnly><Users /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
