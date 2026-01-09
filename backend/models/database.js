@@ -333,10 +333,10 @@ const initDatabase = async () => {
 
         -- Conversation read tracking table
         CREATE TABLE IF NOT EXISTS conversation_reads (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id SERIAL PRIMARY KEY,
           conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
           user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-          last_read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(conversation_id, user_id)
         );
 
