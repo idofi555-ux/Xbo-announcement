@@ -20,7 +20,8 @@ const CATEGORY_CONFIG = {
   api: { icon: Server, label: 'API' },
   system: { icon: Radio, label: 'System' },
   auth: { icon: Shield, label: 'Auth' },
-  channel: { icon: Radio, label: 'Channel' }
+  channel: { icon: Radio, label: 'Channel' },
+  support: { icon: MessageSquare, label: 'Support' }
 };
 
 export default function Logs() {
@@ -38,8 +39,15 @@ export default function Logs() {
     end_date: ''
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const limit = 20;
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(loadLogs, 10000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, page, filters]);
 
   useEffect(() => {
     loadLogs();

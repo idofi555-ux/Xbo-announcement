@@ -3,6 +3,7 @@ const router = express.Router();
 const { pool, USE_POSTGRES } = require('../models/database');
 const { authenticate: auth } = require('../middleware/auth');
 const { sendReplyMessage } = require('../utils/telegram');
+const { logSupportError, logSupportEvent, logConversationEvent, logMessageEvent } = require('../utils/logger');
 
 // Get all conversations with filters
 router.get('/conversations', auth, async (req, res) => {
@@ -74,7 +75,12 @@ router.get('/conversations', auth, async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching conversations:', error);
-    res.status(500).json({ error: 'Failed to fetch conversations' });
+    logSupportError(`Failed to fetch conversations: ${error.message}`, {
+      error: error.message,
+      stack: error.stack?.substring(0, 500),
+      user_id: req.user?.id
+    });
+    res.status(500).json({ error: 'Failed to fetch conversations', details: error.message });
   }
 });
 
@@ -149,7 +155,11 @@ router.get('/inbox/stats', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching inbox stats:', error);
-    res.status(500).json({ error: 'Failed to fetch inbox stats' });
+    logSupportError(`Failed to fetch inbox stats: ${error.message}`, {
+      error: error.message,
+      stack: error.stack?.substring(0, 500)
+    });
+    res.status(500).json({ error: 'Failed to fetch inbox stats', details: error.message });
   }
 });
 
@@ -199,12 +209,18 @@ router.get('/conversations/:id', auth, async (req, res) => {
       DO UPDATE SET last_read_at = CURRENT_TIMESTAMP
     `, [id, userId]);
 
+    logConversationEvent('viewed', id, userId);
+
     res.json({
       ...convResult.rows[0],
       messages: messagesResult.rows
     });
   } catch (error) {
     console.error('Error fetching conversation:', error);
+    logSupportError(`Failed to fetch conversation ${req.params.id}: ${error.message}`, {
+      conversation_id: req.params.id,
+      error: error.message
+    });
     res.status(500).json({ error: 'Failed to fetch conversation' });
   }
 });
@@ -225,6 +241,9 @@ router.post('/conversations/:id/read', auth, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error marking conversation as read:', error);
+    logSupportError(`Failed to mark conversation as read: ${error.message}`, {
+      conversation_id: req.params.id
+    });
     res.status(500).json({ error: 'Failed to mark conversation as read' });
   }
 });
@@ -263,9 +282,15 @@ router.post('/conversations/:id/reply', auth, async (req, res) => {
       UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1
     `, [id]);
 
+    logMessageEvent('sent', id, req.user.id, { content_length: content.length });
+
     res.json({ success: true, message_id: telegramMessage.message_id });
   } catch (error) {
     console.error('Error sending reply:', error);
+    logSupportError(`Failed to send reply: ${error.message}`, {
+      conversation_id: req.params.id,
+      error: error.message
+    });
     res.status(500).json({ error: 'Failed to send reply' });
   }
 });
@@ -280,9 +305,14 @@ router.patch('/conversations/:id/status', auth, async (req, res) => {
       UPDATE conversations SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
     `, [status, id]);
 
+    logConversationEvent('status_changed', id, req.user.id, { new_status: status });
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating conversation status:', error);
+    logSupportError(`Failed to update conversation status: ${error.message}`, {
+      conversation_id: req.params.id
+    });
     res.status(500).json({ error: 'Failed to update status' });
   }
 });
@@ -297,9 +327,14 @@ router.patch('/conversations/:id/assign', auth, async (req, res) => {
       UPDATE conversations SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
     `, [user_id || null, id]);
 
+    logConversationEvent('assigned', id, req.user.id, { assigned_to: user_id });
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error assigning conversation:', error);
+    logSupportError(`Failed to assign conversation: ${error.message}`, {
+      conversation_id: req.params.id
+    });
     res.status(500).json({ error: 'Failed to assign conversation' });
   }
 });
@@ -334,6 +369,7 @@ router.get('/customers', auth, async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching customers:', error);
+    logSupportError(`Failed to fetch customers: ${error.message}`, { error: error.message });
     res.status(500).json({ error: 'Failed to fetch customers' });
   }
 });
@@ -369,6 +405,7 @@ router.get('/customers/:id', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching customer:', error);
+    logSupportError(`Failed to fetch customer: ${error.message}`, { customer_id: req.params.id });
     res.status(500).json({ error: 'Failed to fetch customer' });
   }
 });
@@ -410,9 +447,12 @@ router.patch('/customers/:id', auth, async (req, res) => {
       UPDATE customer_profiles SET ${updates.join(', ')} WHERE id = $${paramIndex}
     `, params);
 
+    logSupportEvent(`Customer profile updated`, { customer_id: id, updated_fields: updates });
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating customer:', error);
+    logSupportError(`Failed to update customer: ${error.message}`, { customer_id: req.params.id });
     res.status(500).json({ error: 'Failed to update customer' });
   }
 });
@@ -429,6 +469,7 @@ router.get('/quick-replies', auth, async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching quick replies:', error);
+    logSupportError(`Failed to fetch quick replies: ${error.message}`, { error: error.message });
     res.status(500).json({ error: 'Failed to fetch quick replies' });
   }
 });
@@ -451,12 +492,15 @@ router.post('/quick-replies', auth, async (req, res) => {
       WHERE qr.id = $1
     `, [id]);
 
+    logSupportEvent(`Quick reply created: ${shortcut}`, { user_id: req.user.id });
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error creating quick reply:', error);
     if (error.code === '23505' || error.message?.includes('UNIQUE constraint')) {
       return res.status(400).json({ error: 'Shortcut already exists' });
     }
+    logSupportError(`Failed to create quick reply: ${error.message}`, { error: error.message });
     res.status(500).json({ error: 'Failed to create quick reply' });
   }
 });
@@ -489,6 +533,7 @@ router.put('/quick-replies/:id', auth, async (req, res) => {
     if (error.code === '23505' || error.message?.includes('UNIQUE constraint')) {
       return res.status(400).json({ error: 'Shortcut already exists' });
     }
+    logSupportError(`Failed to update quick reply: ${error.message}`, { quick_reply_id: req.params.id });
     res.status(500).json({ error: 'Failed to update quick reply' });
   }
 });
@@ -505,9 +550,12 @@ router.delete('/quick-replies/:id', auth, async (req, res) => {
       return res.status(404).json({ error: 'Quick reply not found' });
     }
 
+    logSupportEvent(`Quick reply deleted`, { quick_reply_id: id, user_id: req.user.id });
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting quick reply:', error);
+    logSupportError(`Failed to delete quick reply: ${error.message}`, { quick_reply_id: req.params.id });
     res.status(500).json({ error: 'Failed to delete quick reply' });
   }
 });

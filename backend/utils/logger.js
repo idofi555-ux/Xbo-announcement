@@ -14,15 +14,12 @@ const LOG_CATEGORIES = {
   API: 'api',
   SYSTEM: 'system',
   AUTH: 'auth',
-  CHANNEL: 'channel'
+  CHANNEL: 'channel',
+  SUPPORT: 'support'
 };
 
 /**
  * Create a system log entry
- * @param {string} type - error, warning, info, success
- * @param {string} category - telegram, api, system, auth, channel
- * @param {string} message - Log message
- * @param {object} options - Optional: details, announcement_id, user_id, channel_id
  */
 const createLog = async (type, category, message, options = {}) => {
   try {
@@ -42,7 +39,6 @@ const createLog = async (type, category, message, options = {}) => {
       ]
     );
   } catch (error) {
-    // Don't let logging failures break the app
     console.error('Failed to create log entry:', error.message);
   }
 };
@@ -101,6 +97,29 @@ const logSystemEvent = (message, details = {}) => {
   return logInfo(LOG_CATEGORIES.SYSTEM, message, { details });
 };
 
+// Support logging
+const logSupportEvent = (message, details = {}) => {
+  return logInfo(LOG_CATEGORIES.SUPPORT, message, { details });
+};
+
+const logSupportError = (message, details = {}) => {
+  return logError(LOG_CATEGORIES.SUPPORT, message, { details });
+};
+
+const logConversationEvent = (action, conversationId, userId = null, details = {}) => {
+  return logInfo(LOG_CATEGORIES.SUPPORT, `Conversation ${action}`, {
+    user_id: userId,
+    details: { conversation_id: conversationId, action, ...details }
+  });
+};
+
+const logMessageEvent = (action, conversationId, userId = null, details = {}) => {
+  return logInfo(LOG_CATEGORIES.SUPPORT, `Message ${action}`, {
+    user_id: userId,
+    details: { conversation_id: conversationId, action, ...details }
+  });
+};
+
 module.exports = {
   LOG_TYPES,
   LOG_CATEGORIES,
@@ -116,5 +135,9 @@ module.exports = {
   logChannelRegistered,
   logChannelError,
   logApiError,
-  logSystemEvent
+  logSystemEvent,
+  logSupportEvent,
+  logSupportError,
+  logConversationEvent,
+  logMessageEvent
 };
