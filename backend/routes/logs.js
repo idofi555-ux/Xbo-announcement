@@ -5,7 +5,7 @@ const { authenticate, adminOnly } = require('../middleware/auth');
 const router = express.Router();
 
 // Get logs with filtering and pagination
-router.get('/', authenticate, adminOnly, async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
     const {
       type,

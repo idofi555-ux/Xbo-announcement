@@ -43,7 +43,9 @@ export default function Logs() {
       setLoading(true);
       const params = filter !== 'all' ? { type: filter } : {};
       const response = await api.get('/logs', { params });
-      setLogs(response.data || []);
+      // Backend returns { logs: [], total, stats }
+      const logsData = response.data?.logs || response.data || [];
+      setLogs(Array.isArray(logsData) ? logsData : []);
     } catch (error) {
       console.error('Failed to fetch logs:', error);
       setLogs([]);
@@ -67,9 +69,11 @@ export default function Logs() {
     if (!search) return true;
     const searchLower = search.toLowerCase();
     return (
+      log.message?.toLowerCase().includes(searchLower) ||
       log.action?.toLowerCase().includes(searchLower) ||
       log.details?.toLowerCase().includes(searchLower) ||
-      log.user_name?.toLowerCase().includes(searchLower)
+      log.user_name?.toLowerCase().includes(searchLower) ||
+      log.category?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -158,21 +162,28 @@ export default function Logs() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-slate-800 dark:text-white">
-                          {log.action}
+                          {log.message || log.action || 'Unknown action'}
                         </span>
                         <span className={`badge ${logTypeColors[log.type] || logTypeColors.info}`}>
-                          {log.type}
+                          {log.type || 'info'}
                         </span>
+                        {log.category && (
+                          <span className="badge bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                            {log.category}
+                          </span>
+                        )}
                       </div>
-                      {log.details && (
+                      {(log.details || log.announcement_title || log.channel_title) && (
                         <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
                           {log.details}
+                          {log.announcement_title && <span> • Announcement: {log.announcement_title}</span>}
+                          {log.channel_title && <span> • Channel: {log.channel_title}</span>}
                         </p>
                       )}
                       <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {formatTimestamp(log.created_at)}
+                          {formatTimestamp(log.timestamp || log.created_at)}
                         </span>
                         {log.user_name && (
                           <span className="flex items-center gap-1">
