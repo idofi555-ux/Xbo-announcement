@@ -8,6 +8,7 @@ const { sendReplyMessage } = require('../utils/telegram');
 router.get('/conversations', auth, async (req, res) => {
   try {
     const { status, assigned, search } = req.query;
+    const userId = req.user.id;
 
     let query = `
       SELECT
@@ -26,16 +27,19 @@ router.get('/conversations', auth, async (req, res) => {
         u.name as assigned_name,
         (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY timestamp DESC LIMIT 1) as last_message,
         (SELECT timestamp FROM messages WHERE conversation_id = c.id ORDER BY timestamp DESC LIMIT 1) as last_message_time,
-        (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) as message_count
+        (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) as message_count,
+        cr.last_read_at,
+        (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND direction = 'in' AND timestamp > COALESCE(cr.last_read_at, '1970-01-01')) as unread_count
       FROM conversations c
       JOIN channels ch ON c.channel_id = ch.id
       JOIN customer_profiles cp ON c.customer_id = cp.id
       LEFT JOIN users u ON c.assigned_to = u.id
+      LEFT JOIN conversation_reads cr ON c.id = cr.conversation_id AND cr.user_id = $1
       WHERE 1=1
     `;
 
-    const params = [];
-    let paramIndex = 1;
+    const params = [userId];
+    let paramIndex = 2;
 
     if (status && status !== 'all') {
       if (status === 'unassigned') {
@@ -63,7 +67,8 @@ router.get('/conversations', auth, async (req, res) => {
       paramIndex++;
     }
 
-    query += ` ORDER BY c.updated_at DESC`;
+    // Sort by unread first, then by last message time
+    query += ` ORDER BY unread_count DESC, c.updated_at DESC`;
 
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -73,35 +78,74 @@ router.get('/conversations', auth, async (req, res) => {
   }
 });
 
-// Get inbox stats (open/unassigned count)
+// Get inbox stats (open/unassigned/unread count)
 router.get('/inbox/stats', auth, async (req, res) => {
   try {
+    const userId = req.user.id;
     let query;
     if (USE_POSTGRES) {
       query = `
         SELECT
           COUNT(*) FILTER (WHERE status = 'open') as open_count,
           COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
-          COUNT(*) FILTER (WHERE assigned_to IS NULL AND status != 'closed') as unassigned_count
-        FROM conversations
+          COUNT(*) FILTER (WHERE assigned_to IS NULL AND status != 'closed') as unassigned_count,
+          COUNT(*) FILTER (WHERE status != 'closed' AND (
+            SELECT COUNT(*) FROM messages m
+            WHERE m.conversation_id = c.id
+            AND m.direction = 'in'
+            AND m.timestamp > COALESCE(
+              (SELECT last_read_at FROM conversation_reads WHERE conversation_id = c.id AND user_id = $1),
+              '1970-01-01'
+            )
+          ) > 0) as unread_conversations_count,
+          (SELECT COUNT(*) FROM messages m
+            JOIN conversations c2 ON m.conversation_id = c2.id
+            WHERE c2.status != 'closed'
+            AND m.direction = 'in'
+            AND m.timestamp > COALESCE(
+              (SELECT last_read_at FROM conversation_reads WHERE conversation_id = c2.id AND user_id = $1),
+              '1970-01-01'
+            )
+          ) as total_unread_messages
+        FROM conversations c
       `;
     } else {
       query = `
         SELECT
           SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_count,
           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-          SUM(CASE WHEN assigned_to IS NULL AND status != 'closed' THEN 1 ELSE 0 END) as unassigned_count
-        FROM conversations
+          SUM(CASE WHEN assigned_to IS NULL AND status != 'closed' THEN 1 ELSE 0 END) as unassigned_count,
+          SUM(CASE WHEN status != 'closed' AND (
+            SELECT COUNT(*) FROM messages m
+            WHERE m.conversation_id = c.id
+            AND m.direction = 'in'
+            AND m.timestamp > COALESCE(
+              (SELECT last_read_at FROM conversation_reads WHERE conversation_id = c.id AND user_id = $1),
+              '1970-01-01'
+            )
+          ) > 0 THEN 1 ELSE 0 END) as unread_conversations_count,
+          (SELECT COUNT(*) FROM messages m
+            JOIN conversations c2 ON m.conversation_id = c2.id
+            WHERE c2.status != 'closed'
+            AND m.direction = 'in'
+            AND m.timestamp > COALESCE(
+              (SELECT last_read_at FROM conversation_reads WHERE conversation_id = c2.id AND user_id = $1),
+              '1970-01-01'
+            )
+          ) as total_unread_messages
+        FROM conversations c
       `;
     }
-    const result = await pool.query(query);
+    const result = await pool.query(query, [userId]);
     const stats = result.rows[0] || {};
 
     // Ensure integer values (SQLite SUM can return strings or null)
     res.json({
       open_count: parseInt(stats.open_count) || 0,
       pending_count: parseInt(stats.pending_count) || 0,
-      unassigned_count: parseInt(stats.unassigned_count) || 0
+      unassigned_count: parseInt(stats.unassigned_count) || 0,
+      unread_conversations_count: parseInt(stats.unread_conversations_count) || 0,
+      total_unread_messages: parseInt(stats.total_unread_messages) || 0
     });
   } catch (error) {
     console.error('Error fetching inbox stats:', error);
@@ -113,6 +157,7 @@ router.get('/inbox/stats', auth, async (req, res) => {
 router.get('/conversations/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
 
     // Get conversation details
     const convResult = await pool.query(`
@@ -146,6 +191,14 @@ router.get('/conversations/:id', auth, async (req, res) => {
       ORDER BY timestamp ASC
     `, [id]);
 
+    // Mark conversation as read (upsert)
+    await pool.query(`
+      INSERT INTO conversation_reads (conversation_id, user_id, last_read_at)
+      VALUES ($1, $2, CURRENT_TIMESTAMP)
+      ON CONFLICT (conversation_id, user_id)
+      DO UPDATE SET last_read_at = CURRENT_TIMESTAMP
+    `, [id, userId]);
+
     res.json({
       ...convResult.rows[0],
       messages: messagesResult.rows
@@ -153,6 +206,26 @@ router.get('/conversations/:id', auth, async (req, res) => {
   } catch (error) {
     console.error('Error fetching conversation:', error);
     res.status(500).json({ error: 'Failed to fetch conversation' });
+  }
+});
+
+// Mark conversation as read
+router.post('/conversations/:id/read', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    await pool.query(`
+      INSERT INTO conversation_reads (conversation_id, user_id, last_read_at)
+      VALUES ($1, $2, CURRENT_TIMESTAMP)
+      ON CONFLICT (conversation_id, user_id)
+      DO UPDATE SET last_read_at = CURRENT_TIMESTAMP
+    `, [id, userId]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking conversation as read:', error);
+    res.status(500).json({ error: 'Failed to mark conversation as read' });
   }
 });
 

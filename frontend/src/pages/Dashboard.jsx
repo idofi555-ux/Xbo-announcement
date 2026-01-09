@@ -5,7 +5,7 @@ import {
   Megaphone, Radio, MousePointerClick, Eye,
   TrendingUp, ArrowRight, Clock, Send, Plus,
   ArrowUpRight, ArrowDownRight, Bell, Ticket,
-  AlertTriangle, CheckCircle, Timer
+  AlertTriangle, CheckCircle, Timer, Inbox, MessageCircle
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [ticketStats, setTicketStats] = useState(null);
+  const [inboxStats, setInboxStats] = useState({ unread_conversations_count: 0, total_unread_messages: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,12 +22,14 @@ export default function Dashboard() {
 
   const loadData = async () => {
     try {
-      const [overviewRes, ticketRes] = await Promise.all([
+      const [overviewRes, ticketRes, inboxRes] = await Promise.all([
         getOverview(),
-        api.get('/tickets/stats').catch(() => ({ data: null }))
+        api.get('/tickets/stats').catch(() => ({ data: null })),
+        api.get('/support/inbox/stats').catch(() => ({ data: { unread_conversations_count: 0 } }))
       ]);
       setData(overviewRes.data);
       setTicketStats(ticketRes.data);
+      setInboxStats(inboxRes.data || { unread_conversations_count: 0 });
     } catch (error) {
       console.error('Failed to load dashboard:', error);
     } finally {
@@ -135,6 +138,63 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Alerts Banner */}
+      {(inboxStats.unread_conversations_count > 0 || (ticketStats?.urgent_count > 0 || ticketStats?.breached_count > 0)) && (
+        <div className="flex flex-wrap gap-3">
+          {inboxStats.unread_conversations_count > 0 && (
+            <Link
+              to="/inbox"
+              className="flex items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors group"
+            >
+              <div className="p-2 bg-blue-500 rounded-lg">
+                <Inbox className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-blue-900 dark:text-blue-100">
+                  {inboxStats.unread_conversations_count} unread {inboxStats.unread_conversations_count === 1 ? 'conversation' : 'conversations'}
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">Click to view inbox</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-blue-400 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          )}
+          {ticketStats?.breached_count > 0 && (
+            <Link
+              to="/tickets"
+              className="flex items-center gap-3 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group animate-pulse"
+            >
+              <div className="p-2 bg-red-500 rounded-lg">
+                <AlertTriangle className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-red-900 dark:text-red-100">
+                  {ticketStats.breached_count} SLA breached {ticketStats.breached_count === 1 ? 'ticket' : 'tickets'}
+                </p>
+                <p className="text-sm text-red-700 dark:text-red-300">Requires immediate attention</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-red-400 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          )}
+          {ticketStats?.urgent_count > 0 && !ticketStats?.breached_count && (
+            <Link
+              to="/tickets"
+              className="flex items-center gap-3 px-4 py-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors group"
+            >
+              <div className="p-2 bg-orange-500 rounded-lg">
+                <Ticket className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-orange-900 dark:text-orange-100">
+                  {ticketStats.urgent_count} urgent {ticketStats.urgent_count === 1 ? 'ticket' : 'tickets'}
+                </p>
+                <p className="text-sm text-orange-700 dark:text-orange-300">Click to view tickets</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-orange-400 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">

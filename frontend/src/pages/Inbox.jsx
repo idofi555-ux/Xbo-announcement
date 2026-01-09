@@ -34,11 +34,17 @@ export default function Inbox() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [stats, setStats] = useState({ open_count: 0, pending_count: 0, unassigned_count: 0 });
+  const [stats, setStats] = useState({ open_count: 0, pending_count: 0, unassigned_count: 0, unread_conversations_count: 0 });
 
   useEffect(() => {
     fetchConversations();
     fetchStats();
+    // Auto-refresh every 15 seconds
+    const interval = setInterval(() => {
+      fetchConversations();
+      fetchStats();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [filter, search]);
 
   const fetchConversations = async () => {
@@ -96,6 +102,11 @@ export default function Inbox() {
               <InboxIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
             Inbox
+            {stats.unread_conversations_count > 0 && (
+              <span className="px-2.5 py-1 bg-red-500 text-white text-sm font-bold rounded-full animate-pulse">
+                {stats.unread_conversations_count} unread
+              </span>
+            )}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
             Manage customer conversations from all channels
@@ -168,61 +179,76 @@ export default function Inbox() {
             </p>
           </div>
         ) : (
-          conversations.map((conv) => (
-            <Link
-              key={conv.id}
-              to={`/inbox/${conv.id}`}
-              className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-            >
-              {/* Group Icon */}
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white flex-shrink-0">
-                <Users className="w-6 h-6" />
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                {/* Line 1: Group Name */}
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-lg">👥</span>
-                  <span className="font-bold text-slate-800 dark:text-white truncate">
-                    {conv.channel_title || 'Unknown Group'}
-                  </span>
+          conversations.map((conv) => {
+            const isUnread = parseInt(conv.unread_count) > 0;
+            return (
+              <Link
+                key={conv.id}
+                to={`/inbox/${conv.id}`}
+                className={`flex items-center gap-4 p-4 transition-colors relative ${
+                  isUnread
+                    ? 'bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-l-4 border-l-blue-500'
+                    : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                }`}
+              >
+                {/* Group Icon */}
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white flex-shrink-0 ${
+                  isUnread
+                    ? 'bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg shadow-blue-500/25'
+                    : 'bg-gradient-to-br from-blue-400 to-blue-600'
+                }`}>
+                  <Users className="w-6 h-6" />
                 </div>
-                {/* Line 2: From User */}
-                <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300 mb-1">
-                  <span className="text-slate-400 dark:text-slate-500">From:</span>
-                  <span className="font-medium">{conv.customer_name || 'Unknown'}</span>
-                  {conv.telegram_username && (
-                    <span className="text-slate-500 dark:text-slate-400">@{conv.telegram_username}</span>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  {/* Line 1: Group Name */}
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className={`truncate ${isUnread ? 'font-extrabold text-slate-900 dark:text-white' : 'font-bold text-slate-800 dark:text-white'}`}>
+                      {conv.channel_title || 'Unknown Group'}
+                    </span>
+                    {isUnread && (
+                      <span className="px-2 py-0.5 bg-blue-500 text-white text-xs font-bold rounded-full animate-pulse">
+                        {conv.unread_count > 1 ? `${conv.unread_count} NEW` : 'NEW'}
+                      </span>
+                    )}
+                  </div>
+                  {/* Line 2: From User */}
+                  <div className={`flex items-center gap-1 text-sm mb-1 ${isUnread ? 'text-slate-700 dark:text-slate-200 font-medium' : 'text-slate-600 dark:text-slate-300'}`}>
+                    <span className="text-slate-400 dark:text-slate-500">From:</span>
+                    <span className={isUnread ? 'font-semibold' : 'font-medium'}>{conv.customer_name || 'Unknown'}</span>
+                    {conv.telegram_username && (
+                      <span className="text-slate-500 dark:text-slate-400">@{conv.telegram_username}</span>
+                    )}
+                  </div>
+                  {/* Line 3: Message Preview */}
+                  <p className={`text-sm truncate ${isUnread ? 'text-slate-700 dark:text-slate-300 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {conv.last_message || 'No messages'}
+                  </p>
+                  {/* Assigned to */}
+                  {conv.assigned_name && (
+                    <div className="flex items-center gap-1 mt-1 text-xs text-slate-400 dark:text-slate-500">
+                      <User className="w-3 h-3" />
+                      Assigned to {conv.assigned_name}
+                    </div>
                   )}
                 </div>
-                {/* Line 3: Message Preview */}
-                <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
-                  {conv.last_message || 'No messages'}
-                </p>
-                {/* Assigned to */}
-                {conv.assigned_name && (
-                  <div className="flex items-center gap-1 mt-1 text-xs text-slate-400 dark:text-slate-500">
-                    <User className="w-3 h-3" />
-                    Assigned to {conv.assigned_name}
-                  </div>
-                )}
-              </div>
 
-              {/* Meta */}
-              <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                <span className="text-xs text-slate-400 dark:text-slate-500">
-                  {formatTime(conv.last_message_time || conv.updated_at)}
-                </span>
-                <span className={`badge ${statusColors[conv.status]}`}>
-                  {statusIcons[conv.status]}
-                  {conv.status}
-                </span>
-              </div>
+                {/* Meta */}
+                <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  <span className={`text-xs ${isUnread ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>
+                    {formatTime(conv.last_message_time || conv.updated_at)}
+                  </span>
+                  <span className={`badge ${statusColors[conv.status]}`}>
+                    {statusIcons[conv.status]}
+                    {conv.status}
+                  </span>
+                </div>
 
-              <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600 flex-shrink-0" />
-            </Link>
-          ))
+                <ChevronRight className={`w-5 h-5 flex-shrink-0 ${isUnread ? 'text-blue-400 dark:text-blue-500' : 'text-slate-300 dark:text-slate-600'}`} />
+              </Link>
+            );
+          })
         )}
       </div>
     </div>

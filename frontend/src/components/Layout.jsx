@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -25,7 +25,8 @@ import {
   MessageSquare,
   UserCircle,
   Ticket,
-  ScrollText
+  ScrollText,
+  Volume2
 } from 'lucide-react';
 
 const navigation = [
@@ -51,6 +52,9 @@ const adminNavigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
+// Notification sound (base64 encoded short beep)
+const NOTIFICATION_SOUND = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVoGAACBhYqFbF1mdJOlpq6tmZ+MkJKAfHtzfH6BgIF8d3F0enZ0dnZ4e3x8e3x5c3Z4fYCCgoGBfXx5d3Z5fH6BgoKBgH16eHh5fH+BgYODgX58enp6e32AgIKDgYB+fHx6ent+gIGCg4GBf318e3p7foCBgoKBgH59fHt7e36AgIGCgYB/fnx8e3t9f4CBgoKBgH5+fHx7e3+AgYGBgYB/fXx8fHt9f4CBgYGAgH9+fXx8e35/gICBgYCAf359fHt8fn+AgIGBgIB/fn58fHx+f4CAgIGAgH9+fn19fH5/gICBgYCAf35+fX18fn+AgICAgIB/fn5+fXx+f4CAgICAgH9/fn59fX5/gICAgICAgH9+fn19fn+AgICAgIB/f35+fX1+f4CAgICAgH9/fn59fX5/gICAgICAgH9+fn19fn+AgICAgICAf39+fn19fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgIB/f35+fn59fn9/f39/f35+fn59fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn8='
+
 export default function Layout({ children }) {
   const { user, logout, isAdmin } = useAuth();
   const { darkMode, toggleDarkMode } = useTheme();
@@ -58,20 +62,64 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [badges, setBadges] = useState({ inbox: 0, tickets: 0 });
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const prevBadgesRef = useRef({ inbox: 0, tickets: 0 });
+  const audioRef = useRef(null);
 
+  // Initialize audio element
   useEffect(() => {
-    fetchBadgeCounts();
-    // Refresh count every 30 seconds
-    const interval = setInterval(fetchBadgeCounts, 30000);
-    return () => clearInterval(interval);
+    audioRef.current = new Audio(NOTIFICATION_SOUND);
+    audioRef.current.volume = 0.5;
   }, []);
 
-  const fetchBadgeCounts = async () => {
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        setNotificationsEnabled(true);
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          setNotificationsEnabled(permission === 'granted');
+        });
+      }
+    }
+  }, []);
+
+  // Play notification sound
+  const playNotificationSound = useCallback(() => {
+    if (soundEnabled && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(err => {
+        console.log('Could not play notification sound:', err);
+      });
+    }
+  }, [soundEnabled]);
+
+  // Show browser notification
+  const showNotification = useCallback((title, body, onClick) => {
+    if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification(title, {
+        body,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: 'xbo-notification',
+        renotify: true
+      });
+      notification.onclick = () => {
+        window.focus();
+        if (onClick) onClick();
+        notification.close();
+      };
+    }
+  }, [notificationsEnabled]);
+
+  const fetchBadgeCounts = useCallback(async () => {
     try {
       const [inboxRes, ticketRes] = await Promise.all([
         api.get('/support/inbox/stats').catch((e) => {
           console.error('Failed to fetch inbox stats:', e);
-          return { data: { open_count: 0, unassigned_count: 0 } };
+          return { data: { open_count: 0, unread_conversations_count: 0 } };
         }),
         api.get('/tickets/stats').catch((e) => {
           console.error('Failed to fetch ticket stats:', e);
@@ -80,26 +128,57 @@ export default function Layout({ children }) {
       ]);
 
       // Convert to numbers and handle null/undefined/string values
-      const openCount = parseInt(inboxRes.data?.open_count) || 0;
-      const pendingCount = parseInt(inboxRes.data?.pending_count) || 0;
+      const unreadCount = parseInt(inboxRes.data?.unread_conversations_count) || 0;
       const urgentCount = parseInt(ticketRes.data?.urgent_count) || 0;
       const breachedCount = parseInt(ticketRes.data?.breached_count) || 0;
+      const ticketBadge = urgentCount + breachedCount;
 
-      console.log('Badge counts:', { openCount, pendingCount, urgentCount, breachedCount });
+      // Check for new messages/tickets and notify
+      if (prevBadgesRef.current.inbox < unreadCount) {
+        const newMessages = unreadCount - prevBadgesRef.current.inbox;
+        playNotificationSound();
+        showNotification(
+          'New Message',
+          `You have ${newMessages} new unread ${newMessages === 1 ? 'message' : 'messages'}`,
+          () => navigate('/inbox')
+        );
+      }
+      if (prevBadgesRef.current.tickets < ticketBadge) {
+        playNotificationSound();
+        showNotification(
+          'Ticket Alert',
+          `You have ${ticketBadge} ${ticketBadge === 1 ? 'ticket' : 'tickets'} requiring attention`,
+          () => navigate('/tickets')
+        );
+      }
 
-      // Badge shows open + pending conversations (active conversations needing attention)
+      // Update previous values
+      prevBadgesRef.current = { inbox: unreadCount, tickets: ticketBadge };
+
+      // Badge shows unread conversations count
       setBadges({
-        inbox: openCount + pendingCount,
-        tickets: urgentCount + breachedCount
+        inbox: unreadCount,
+        tickets: ticketBadge
       });
     } catch (error) {
       console.error('Failed to fetch badge counts:', error);
     }
-  };
+  }, [playNotificationSound, showNotification, navigate]);
+
+  useEffect(() => {
+    fetchBadgeCounts();
+    // Refresh count every 15 seconds
+    const interval = setInterval(fetchBadgeCounts, 15000);
+    return () => clearInterval(interval);
+  }, [fetchBadgeCounts]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const toggleSound = () => {
+    setSoundEnabled(!soundEnabled);
   };
 
   const NavLink = ({ item, mobile = false }) => {
@@ -123,7 +202,7 @@ export default function Layout({ children }) {
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
             isActive
               ? 'bg-white/20 text-white'
-              : item.badgeKey === 'tickets' ? 'bg-orange-500 text-white' : 'bg-red-500 text-white'
+              : item.badgeKey === 'tickets' ? 'bg-orange-500 text-white animate-pulse' : 'bg-red-500 text-white animate-pulse'
           }`}>
             {badgeCount > 99 ? '99+' : badgeCount}
           </span>
@@ -193,6 +272,17 @@ export default function Layout({ children }) {
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user?.email}</p>
             </div>
             <button
+              onClick={toggleSound}
+              className={`p-2 rounded-lg transition-all ${
+                soundEnabled
+                  ? 'text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-600'
+                  : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600'
+              }`}
+              title={soundEnabled ? 'Sound enabled' : 'Sound disabled'}
+            >
+              <Volume2 className="w-4 h-4" />
+            </button>
+            <button
               onClick={handleLogout}
               className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-white dark:hover:bg-slate-600 rounded-lg transition-all"
               title="Logout"
@@ -231,7 +321,9 @@ export default function Layout({ children }) {
             </button>
             <button className="p-2 -mr-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl relative">
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+              {(badges.inbox > 0 || badges.tickets > 0) && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+              )}
             </button>
           </div>
         </div>

@@ -331,6 +331,18 @@ const initDatabase = async () => {
           CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
           CREATE INDEX IF NOT EXISTS idx_customer_profiles_telegram ON customer_profiles(telegram_user_id);
 
+        -- Conversation read tracking table
+        CREATE TABLE IF NOT EXISTS conversation_reads (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          last_read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(conversation_id, user_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_conversation_reads_conv ON conversation_reads(conversation_id);
+        CREATE INDEX IF NOT EXISTS idx_conversation_reads_user ON conversation_reads(user_id);
+
           -- System Logs Table
           CREATE TABLE IF NOT EXISTS system_logs (
             id SERIAL PRIMARY KEY,
@@ -608,6 +620,18 @@ const initDatabase = async () => {
         CREATE INDEX IF NOT EXISTS idx_conversations_channel ON conversations(channel_id);
         CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
         CREATE INDEX IF NOT EXISTS idx_customer_profiles_telegram ON customer_profiles(telegram_user_id);
+
+        -- Conversation read tracking table
+        CREATE TABLE IF NOT EXISTS conversation_reads (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          last_read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(conversation_id, user_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_conversation_reads_conv ON conversation_reads(conversation_id);
+        CREATE INDEX IF NOT EXISTS idx_conversation_reads_user ON conversation_reads(user_id);
 
         -- System Logs Table
         CREATE TABLE IF NOT EXISTS system_logs (
