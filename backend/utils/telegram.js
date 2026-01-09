@@ -254,17 +254,20 @@ const initBot = () => {
 
       try {
         // Check if this chat/channel is registered
+        console.log(`[CRM] Checking if chat ${chat.id} is registered...`);
         const channelResult = await pool.query(
           'SELECT id FROM channels WHERE telegram_id = $1',
           [chat.id.toString()]
         );
 
         if (channelResult.rows.length === 0) {
-          console.log(`[BOT] Skipping - group ${chat.title} is not registered`);
+          console.log(`[BOT] ⚠️ Skipping - group "${chat.title}" (${chat.id}) is NOT registered`);
+          console.log(`[BOT] Use /register in the group to enable message tracking`);
           return;
         }
 
         const channelId = channelResult.rows[0].id;
+        console.log(`[CRM] ✅ Chat is registered as channel_id=${channelId}`);
 
         // Create or update customer profile
         const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || 'Unknown';
@@ -294,15 +297,18 @@ const initBot = () => {
               [user.username || null, displayName, customerId]
             );
           } else {
-            const insertResult = await pool.query(
+            await pool.query(
               `INSERT INTO customer_profiles (telegram_user_id, telegram_username, display_name) VALUES ($1, $2, $3)`,
               [user.id.toString(), user.username || null, displayName]
             );
-            customerId = insertResult.rows[0].id;
+            const lastIdResult = await pool.query(`SELECT last_insert_rowid() as id`);
+            customerId = lastIdResult.rows[0].id;
           }
         }
+        console.log(`[CRM] Customer profile id=${customerId} for ${displayName}`);
 
         // Find or create conversation for this customer in this channel
+        console.log(`[CRM] Looking for existing conversation: channel_id=${channelId}, customer_id=${customerId}`);
         let conversationResult = await pool.query(
           `SELECT id FROM conversations
            WHERE channel_id = $1 AND customer_id = $2 AND status != 'closed'
@@ -313,13 +319,26 @@ const initBot = () => {
         let conversationId;
         if (conversationResult.rows.length === 0) {
           // Create new conversation
-          const newConv = await pool.query(
-            `INSERT INTO conversations (channel_id, customer_id, status) VALUES ($1, $2, 'open')`,
-            [channelId, customerId]
-          );
-          conversationId = newConv.rows[0].id;
+          console.log(`[CRM] Creating new conversation for customer ${customerId} in channel ${channelId}`);
+          if (USE_POSTGRES) {
+            const newConv = await pool.query(
+              `INSERT INTO conversations (channel_id, customer_id, status) VALUES ($1, $2, 'open') RETURNING id`,
+              [channelId, customerId]
+            );
+            conversationId = newConv.rows[0].id;
+          } else {
+            // SQLite
+            await pool.query(
+              `INSERT INTO conversations (channel_id, customer_id, status) VALUES ($1, $2, 'open')`,
+              [channelId, customerId]
+            );
+            const lastIdResult = await pool.query(`SELECT last_insert_rowid() as id`);
+            conversationId = lastIdResult.rows[0].id;
+          }
+          console.log(`[CRM] New conversation created with id=${conversationId}`);
         } else {
           conversationId = conversationResult.rows[0].id;
+          console.log(`[CRM] Found existing conversation id=${conversationId}`);
           // Update conversation timestamp
           await pool.query(
             `UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
@@ -328,15 +347,18 @@ const initBot = () => {
         }
 
         // Save the message
+        console.log(`[CRM] Saving message to conversation ${conversationId}...`);
         await pool.query(
           `INSERT INTO messages (conversation_id, telegram_message_id, direction, content, sender_name)
            VALUES ($1, $2, 'in', $3, $4)`,
           [conversationId, msg.message_id.toString(), msg.text, displayName]
         );
 
-        console.log(`[CRM] Message saved from ${displayName} in ${chat.title}`);
+        console.log(`[CRM] ✅ Message saved successfully!`);
+        console.log(`[CRM] Summary: "${msg.text}" from ${displayName} in "${chat.title}" -> conversation_id=${conversationId}`);
       } catch (error) {
-        console.error('[CRM] Error saving message:', error.message);
+        console.error('[CRM] ❌ Error saving message:', error.message);
+        console.error('[CRM] Stack:', error.stack);
       }
     });
 
