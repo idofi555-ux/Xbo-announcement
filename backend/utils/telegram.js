@@ -419,6 +419,9 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
     content = content.replace(link.original_url, link.tracked_url);
   });
 
+  // Convert markdown formatting to Telegram HTML
+  content = convertMarkdownToTelegramHTML(content);
+
   // Parse admin-defined buttons only (no tracking button added)
   let replyMarkup = null;
   const hasDefinedButtons = announcement.buttons && announcement.buttons !== '[]' && announcement.buttons !== 'null';
@@ -549,6 +552,24 @@ const processUpdate = (update) => {
   }
 };
 
+// Convert markdown formatting to Telegram HTML
+const convertMarkdownToTelegramHTML = (text) => {
+  if (!text) return text;
+
+  // Convert **bold** to <b>bold</b>
+  text = text.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+
+  // Convert _italic_ to <i>italic</i> (but not __underline__)
+  text = text.replace(/(?<![_])_([^_]+)_(?![_])/g, '<i>$1</i>');
+
+  // Convert `code` to <code>code</code>
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Line breaks are preserved as-is (Telegram handles \n)
+
+  return text;
+};
+
 // Stop bot polling (cleanup)
 const stopBot = () => {
   if (bot && botInitialized) {
@@ -564,6 +585,9 @@ const sendReplyMessage = async (channelTelegramId, content, replyToMessageId = n
     throw new Error('Telegram bot not initialized');
   }
 
+  // Convert markdown formatting to Telegram HTML
+  const formattedContent = convertMarkdownToTelegramHTML(content);
+
   const options = {
     parse_mode: 'HTML'
   };
@@ -573,7 +597,7 @@ const sendReplyMessage = async (channelTelegramId, content, replyToMessageId = n
   }
 
   try {
-    const message = await bot.sendMessage(channelTelegramId, content, options);
+    const message = await bot.sendMessage(channelTelegramId, formattedContent, options);
     return message;
   } catch (error) {
     console.error('Error sending reply:', error.message);
