@@ -73,6 +73,7 @@ export default function Tickets() {
   const [tickets, setTickets] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     status: 'all',
     priority: 'all',
@@ -88,6 +89,7 @@ export default function Tickets() {
 
   const fetchTickets = async () => {
     try {
+      setError(null);
       const params = new URLSearchParams();
       if (filters.status !== 'all') params.append('status', filters.status);
       if (filters.priority !== 'all') params.append('priority', filters.priority);
@@ -95,9 +97,11 @@ export default function Tickets() {
       params.append('sort', filters.sort);
 
       const response = await api.get(`/tickets?${params.toString()}`);
-      setTickets(response.data);
+      setTickets(response.data || []);
     } catch (error) {
       console.error('Error fetching tickets:', error);
+      setError('Failed to load tickets. Please try again.');
+      setTickets([]);
     } finally {
       setLoading(false);
     }
@@ -109,6 +113,7 @@ export default function Tickets() {
       setStats(response.data);
     } catch (error) {
       console.error('Error fetching stats:', error);
+      setStats({ open_count: 0, urgent_count: 0, breached_count: 0 });
     }
   };
 
@@ -228,6 +233,20 @@ export default function Tickets() {
         <div className="card p-8 text-center">
           <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto" />
           <p className="text-slate-500 dark:text-slate-400 mt-3">Loading tickets...</p>
+        </div>
+      ) : error ? (
+        <div className="card p-12 text-center">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-8 h-8 text-red-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-2">Error Loading Tickets</h3>
+          <p className="text-slate-500 dark:text-slate-400 mb-4">{error}</p>
+          <button
+            onClick={() => { setLoading(true); fetchTickets(); fetchStats(); }}
+            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       ) : filteredTickets.length === 0 ? (
         <div className="card p-12 text-center">

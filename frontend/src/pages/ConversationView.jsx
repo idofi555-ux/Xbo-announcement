@@ -34,6 +34,7 @@ export default function ConversationView() {
   const { user } = useAuth();
   const [conversation, setConversation] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [quickReplies, setQuickReplies] = useState([]);
@@ -79,11 +80,13 @@ export default function ConversationView() {
 
   const fetchConversation = async () => {
     try {
+      setError(null);
       const response = await api.get(`/support/conversations/${id}`);
       setConversation(response.data);
     } catch (error) {
+      console.error('Failed to load conversation:', error);
+      setError('Failed to load conversation. Please try again.');
       toast.error('Failed to load conversation');
-      navigate('/inbox');
     } finally {
       setLoading(false);
     }
@@ -215,8 +218,33 @@ export default function ConversationView() {
     );
   }
 
-  if (!conversation) {
-    return null;
+  if (error || !conversation) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-2">
+            {error || 'Conversation not found'}
+          </h3>
+          <div className="flex gap-3 justify-center mt-4">
+            <button
+              onClick={() => navigate('/inbox')}
+              className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+            >
+              Back to Inbox
+            </button>
+            <button
+              onClick={() => { setLoading(true); fetchConversation(); }}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Safely parse customer tags

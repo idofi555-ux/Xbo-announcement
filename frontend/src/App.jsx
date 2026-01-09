@@ -84,7 +84,7 @@ function AppRoutes() {
       <Route path="/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
       <Route path="/tickets/:id" element={<ProtectedRoute><TicketView /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute adminOnly><Users /></ProtectedRoute>} />
-      <Route path="/logs" element={<ProtectedRoute adminOnly><Logs /></ProtectedRoute>} />
+      <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

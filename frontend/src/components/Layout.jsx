@@ -44,11 +44,11 @@ const supportNavigation = [
   { name: 'Tickets', href: '/tickets', icon: Ticket, badgeKey: 'tickets' },
   { name: 'Customers', href: '/customers', icon: UserCircle },
   { name: 'Quick Replies', href: '/quick-replies', icon: MessageSquare },
+  { name: 'Logs', href: '/logs', icon: ScrollText },
 ];
 
 const adminNavigation = [
   { name: 'Team', href: '/users', icon: Users },
-  { name: 'Logs', href: '/logs', icon: ScrollText },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
