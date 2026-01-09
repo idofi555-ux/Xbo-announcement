@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../models/database');
-const { generateToken, authenticate, adminOnly, logActivity } = require('../middleware/auth');
+const { generateToken, authenticate, adminOnly, logActivity, ROLE_PERMISSIONS, hasPermission } = require('../middleware/auth');
 const { logLoginSuccess, logLoginFailed } = require('../utils/logger');
 
 const router = express.Router();
@@ -36,7 +36,9 @@ router.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        notify_email: user.notify_email,
+        permissions: ROLE_PERMISSIONS[user.role] || []
       }
     });
   } catch (error) {
@@ -48,16 +50,27 @@ router.post('/login', async (req, res) => {
 
 // Get current user
 router.get('/me', authenticate, (req, res) => {
-  res.json({ user: req.user });
+  res.json({
+    user: {
+      ...req.user,
+      permissions: ROLE_PERMISSIONS[req.user.role] || []
+    }
+  });
 });
 
 // Register new user (admin only)
 router.post('/register', authenticate, adminOnly, async (req, res) => {
   try {
-    const { email, password, name, role = 'user' } = req.body;
+    const { email, password, name, role = 'admin' } = req.body;
 
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'Email, password, and name required' });
+    }
+
+    // Validate role
+    const validRoles = ['admin', 'marketing', 'support'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role. Must be admin, marketing, or support' });
     }
 
     // Check if user exists
@@ -89,7 +102,7 @@ router.post('/register', authenticate, adminOnly, async (req, res) => {
 router.get('/users', authenticate, adminOnly, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, email, name, role, created_at, last_login
+      SELECT id, email, name, role, notify_email, created_at, last_login
       FROM users
       ORDER BY created_at DESC
     `);
@@ -107,6 +120,14 @@ router.put('/users/:id', authenticate, adminOnly, async (req, res) => {
     const { id } = req.params;
     const { name, role, password } = req.body;
 
+    // Validate role if provided
+    if (role) {
+      const validRoles = ['admin', 'marketing', 'support'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ error: 'Invalid role. Must be admin, marketing, or support' });
+      }
+    }
+
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -115,7 +136,7 @@ router.put('/users/:id', authenticate, adminOnly, async (req, res) => {
     const user = userResult.rows[0];
 
     // Don't allow removing the last admin
-    if (user.role === 'admin' && role === 'user') {
+    if (user.role === 'admin' && role !== 'admin') {
       const adminCount = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = $1', ['admin']);
       if (parseInt(adminCount.rows[0].count) <= 1) {
         return res.status(400).json({ error: 'Cannot remove the last admin' });

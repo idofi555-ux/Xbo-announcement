@@ -142,7 +142,8 @@ const initDatabase = async () => {
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             name TEXT NOT NULL,
-            role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+            role TEXT DEFAULT 'admin' CHECK(role IN ('admin', 'marketing', 'support')),
+            notify_email INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_login TIMESTAMP
           );
@@ -359,6 +360,21 @@ const initDatabase = async () => {
           CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp);
           CREATE INDEX IF NOT EXISTS idx_system_logs_type ON system_logs(type);
           CREATE INDEX IF NOT EXISTS idx_system_logs_category ON system_logs(category);
+
+          -- In-app Notifications Table
+          CREATE TABLE IF NOT EXISTS notifications (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            type TEXT NOT NULL CHECK(type IN ('ticket_assigned', 'sla_warning', 'urgent_ticket', 'ticket_reply', 'system')),
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            link TEXT,
+            is_read INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+          CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
         `);
 
         // Run migrations to add missing columns
@@ -381,7 +397,11 @@ const initDatabase = async () => {
           'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS first_response_at TIMESTAMP',
           'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP',
           'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP',
-          'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+          'ALTER TABLE tickets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+          // User roles and notifications migrations
+          'ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_email INTEGER DEFAULT 1',
+          // Migrate existing 'user' role to 'marketing' (or keep as admin)
+          "UPDATE users SET role = 'admin' WHERE role = 'user'"
         ];
 
         for (const migration of migrations) {
@@ -433,7 +453,8 @@ const initDatabase = async () => {
           email TEXT UNIQUE NOT NULL,
           password TEXT NOT NULL,
           name TEXT NOT NULL,
-          role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+          role TEXT DEFAULT 'admin' CHECK(role IN ('admin', 'marketing', 'support')),
+          notify_email INTEGER DEFAULT 1,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           last_login DATETIME
         );
@@ -649,6 +670,21 @@ const initDatabase = async () => {
         CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp);
         CREATE INDEX IF NOT EXISTS idx_system_logs_type ON system_logs(type);
         CREATE INDEX IF NOT EXISTS idx_system_logs_category ON system_logs(category);
+
+        -- In-app Notifications Table
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          type TEXT NOT NULL CHECK(type IN ('ticket_assigned', 'sla_warning', 'urgent_ticket', 'ticket_reply', 'system')),
+          title TEXT NOT NULL,
+          message TEXT NOT NULL,
+          link TEXT,
+          is_read INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+        CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
       `);
 
       // Run migrations to add missing columns to existing tables
@@ -687,6 +723,22 @@ const initDatabase = async () => {
         } catch (e) {
           // Column already exists, ignore
         }
+      }
+
+      // Migration: Add notify_email column to users
+      try {
+        db.exec('ALTER TABLE users ADD COLUMN notify_email INTEGER DEFAULT 1');
+        console.log('Migration applied: notify_email column added to users');
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
+      // Migration: Update 'user' role to 'admin' (migrate old role values)
+      try {
+        db.prepare("UPDATE users SET role = 'admin' WHERE role = 'user'").run();
+        console.log('Migration applied: migrated user roles');
+      } catch (e) {
+        // Ignore errors
       }
 
       console.log('Migrations complete.');

@@ -1,9 +1,31 @@
 import { useState, useEffect } from 'react';
 import { getUsers, createUser, updateUser, deleteUser } from '../utils/api';
 import { useAuth } from '../hooks/useAuth';
-import { Plus, Users as UsersIcon, MoreVertical, Trash2, Edit2, Shield, User } from 'lucide-react';
+import { Plus, Users as UsersIcon, MoreVertical, Trash2, Edit2, Shield, Megaphone, Headphones } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+
+// Role configuration with colors and icons
+const ROLE_CONFIG = {
+  admin: {
+    label: 'Admin',
+    icon: Shield,
+    badgeClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+    description: 'Full access to everything'
+  },
+  marketing: {
+    label: 'Marketing',
+    icon: Megaphone,
+    badgeClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+    description: 'Announcements, Campaigns, Analytics'
+  },
+  support: {
+    label: 'Support',
+    icon: Headphones,
+    badgeClass: 'bg-green-500/20 text-green-400 border border-green-500/30',
+    description: 'Inbox, Tickets, Customers'
+  }
+};
 
 export default function Users() {
   const { user: currentUser } = useAuth();
@@ -11,7 +33,7 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState({ email: '', password: '', name: '', role: 'user' });
+  const [form, setForm] = useState({ email: '', password: '', name: '', role: 'admin' });
   const [activeMenu, setActiveMenu] = useState(null);
 
   useEffect(() => {
@@ -43,7 +65,7 @@ export default function Users() {
       }
       setShowModal(false);
       setEditingUser(null);
-      setForm({ email: '', password: '', name: '', role: 'user' });
+      setForm({ email: '', password: '', name: '', role: 'admin' });
       loadUsers();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to save user');
@@ -73,8 +95,8 @@ export default function Users() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800 dark:text-white">Users</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage team members and access</p>
+          <h1 className="text-2xl font-semibold text-slate-800 dark:text-white">Team</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage team members and role-based access</p>
         </div>
         <button onClick={() => setShowModal(true)} className="btn btn-primary">
           <Plus className="w-4 h-4" />
@@ -117,13 +139,16 @@ export default function Users() {
                     </div>
                   </td>
                   <td>
-                    <span className={`badge ${user.role === 'admin' ? 'badge-warning' : 'bg-dark-700 text-dark-300'}`}>
-                      {user.role === 'admin' ? (
-                        <><Shield className="w-3 h-3 mr-1" /> Admin</>
-                      ) : (
-                        <><User className="w-3 h-3 mr-1" /> User</>
-                      )}
-                    </span>
+                    {(() => {
+                      const roleConfig = ROLE_CONFIG[user.role] || ROLE_CONFIG.admin;
+                      const IconComponent = roleConfig.icon;
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${roleConfig.badgeClass}`}>
+                          <IconComponent className="w-3.5 h-3.5" />
+                          {roleConfig.label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="text-dark-400">
                     {user.last_login ? format(new Date(user.last_login), 'MMM d, h:mm a') : 'Never'}
@@ -224,8 +249,11 @@ export default function Users() {
                   onChange={(e) => setForm(prev => ({ ...prev, role: e.target.value }))}
                   className="input"
                 >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
+                  {Object.entries(ROLE_CONFIG).map(([value, config]) => (
+                    <option key={value} value={value}>
+                      {config.label} - {config.description}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="flex gap-3 pt-2">
@@ -234,7 +262,7 @@ export default function Users() {
                   onClick={() => {
                     setShowModal(false);
                     setEditingUser(null);
-                    setForm({ email: '', password: '', name: '', role: 'user' });
+                    setForm({ email: '', password: '', name: '', role: 'admin' });
                   }}
                   className="btn btn-secondary flex-1"
                 >

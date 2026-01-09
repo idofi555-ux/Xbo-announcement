@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import api from '../utils/api';
+import NotificationBell from './NotificationBell';
 import {
   LayoutDashboard,
   Megaphone,
@@ -17,7 +18,6 @@ import {
   Menu,
   X,
   Zap,
-  Bell,
   Search,
   Moon,
   Sun,
@@ -29,24 +29,26 @@ import {
   Volume2
 } from 'lucide-react';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Announcements', href: '/announcements', icon: Megaphone },
-  { name: 'Channels', href: '/channels', icon: Radio },
-  { name: 'Campaigns', href: '/campaigns', icon: FolderKanban },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Click Details', href: '/click-details', icon: MousePointerClick },
-  { name: 'Insights', href: '/insights', icon: Lightbulb },
+// Marketing menu items (with feature keys for permission filtering)
+const marketingNavigation = [
+  { name: 'Announcements', href: '/announcements', icon: Megaphone, feature: 'announcements' },
+  { name: 'Channels', href: '/channels', icon: Radio, feature: 'channels' },
+  { name: 'Campaigns', href: '/campaigns', icon: FolderKanban, feature: 'campaigns' },
+  { name: 'Analytics', href: '/analytics', icon: BarChart3, feature: 'analytics' },
+  { name: 'Click Details', href: '/click-details', icon: MousePointerClick, feature: 'click-details' },
+  { name: 'Insights', href: '/insights', icon: Lightbulb, feature: 'insights' },
 ];
 
+// Support menu items
 const supportNavigation = [
-  { name: 'Inbox', href: '/inbox', icon: Inbox, badgeKey: 'inbox' },
-  { name: 'Tickets', href: '/tickets', icon: Ticket, badgeKey: 'tickets' },
-  { name: 'Customers', href: '/customers', icon: UserCircle },
-  { name: 'Quick Replies', href: '/quick-replies', icon: MessageSquare },
-  { name: 'Logs', href: '/logs', icon: ScrollText },
+  { name: 'Inbox', href: '/inbox', icon: Inbox, badgeKey: 'inbox', feature: 'inbox' },
+  { name: 'Tickets', href: '/tickets', icon: Ticket, badgeKey: 'tickets', feature: 'tickets' },
+  { name: 'Customers', href: '/customers', icon: UserCircle, feature: 'customers' },
+  { name: 'Quick Replies', href: '/quick-replies', icon: MessageSquare, feature: 'quick-replies' },
+  { name: 'Logs', href: '/logs', icon: ScrollText, feature: 'logs' },
 ];
 
+// Admin-only menu items
 const adminNavigation = [
   { name: 'Team', href: '/users', icon: Users },
   { name: 'Settings', href: '/settings', icon: Settings },
@@ -56,7 +58,7 @@ const adminNavigation = [
 const NOTIFICATION_SOUND = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVoGAACBhYqFbF1mdJOlpq6tmZ+MkJKAfHtzfH6BgIF8d3F0enZ0dnZ4e3x8e3x5c3Z4fYCCgoGBfXx5d3Z5fH6BgoKBgH16eHh5fH+BgYODgX58enp6e32AgIKDgYB+fHx6ent+gIGCg4GBf318e3p7foCBgoKBgH59fHt7e36AgIGCgYB/fnx8e3t9f4CBgoKBgH5+fHx7e3+AgYGBgYB/fXx8fHt9f4CBgYGAgH9+fXx8e35/gICBgYCAf359fHt8fn+AgIGBgIB/fn58fHx+f4CAgIGAgH9+fn19fH5/gICBgYCAf35+fX18fn+AgICAgIB/fn5+fXx+f4CAgICAgH9/fn59fX5/gICAgICAgH9+fn19fn+AgICAgIB/f35+fX1+f4CAgICAgH9/fn59fX5/gICAgICAgH9+fn19fn+AgICAgICAf39+fn19fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgICAgICAf39+fn59fn+AgIB/f35+fn59fn9/f39/f35+fn59fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f39/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn9/f35+fn5+fn8='
 
 export default function Layout({ children }) {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, hasPermission } = useAuth();
   const { darkMode, toggleDarkMode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -240,16 +242,31 @@ export default function Layout({ children }) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {/* Dashboard - visible to all */}
         <p className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Menu</p>
-        {navigation.map((item) => (
-          <NavLink key={item.name} item={item} mobile={mobile} />
-        ))}
+        <NavLink item={{ name: 'Dashboard', href: '/', icon: LayoutDashboard }} mobile={mobile} />
 
-        <p className="px-3 py-2 mt-4 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Support</p>
-        {supportNavigation.map((item) => (
-          <NavLink key={item.name} item={item} mobile={mobile} />
-        ))}
+        {/* Marketing section - filtered by permissions */}
+        {marketingNavigation.filter(item => hasPermission(item.feature)).length > 0 && (
+          <>
+            <p className="px-3 py-2 mt-4 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Marketing</p>
+            {marketingNavigation.filter(item => hasPermission(item.feature)).map((item) => (
+              <NavLink key={item.name} item={item} mobile={mobile} />
+            ))}
+          </>
+        )}
 
+        {/* Support section - filtered by permissions */}
+        {supportNavigation.filter(item => hasPermission(item.feature)).length > 0 && (
+          <>
+            <p className="px-3 py-2 mt-4 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Support</p>
+            {supportNavigation.filter(item => hasPermission(item.feature)).map((item) => (
+              <NavLink key={item.name} item={item} mobile={mobile} />
+            ))}
+          </>
+        )}
+
+        {/* Admin section - only for admins */}
         {isAdmin && (
           <>
             <p className="px-3 py-2 mt-4 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Admin</p>
@@ -291,7 +308,7 @@ export default function Layout({ children }) {
             </button>
           </div>
         </div>
-        <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-3">v1.1.1</p>
+        <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-3">v1.2.0</p>
       </div>
     </div>
   );
@@ -320,12 +337,7 @@ export default function Layout({ children }) {
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            <button className="p-2 -mr-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl relative">
-              <Bell className="w-5 h-5" />
-              {(badges.inbox > 0 || badges.tickets > 0) && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-              )}
-            </button>
+            <NotificationBell />
           </div>
         </div>
       </header>
@@ -362,13 +374,16 @@ export default function Layout({ children }) {
         <SidebarContent />
       </aside>
 
-      {/* Desktop Theme Toggle */}
-      <button
-        onClick={toggleDarkMode}
-        className="hidden lg:flex fixed top-4 right-4 z-40 p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm hover:shadow-md transition-all text-slate-600 dark:text-slate-400"
-      >
-        {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-      </button>
+      {/* Desktop Header Actions */}
+      <div className="hidden lg:flex fixed top-4 right-4 z-40 items-center gap-2">
+        <NotificationBell />
+        <button
+          onClick={toggleDarkMode}
+          className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm hover:shadow-md transition-all text-slate-600 dark:text-slate-400"
+        >
+          {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        </button>
+      </div>
 
       {/* Main Content */}
       <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">

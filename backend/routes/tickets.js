@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool, USE_POSTGRES } = require('../models/database');
 const { authenticate: auth } = require('../middleware/auth');
+const { createNotification, notifyUsersByRole } = require('./notifications');
 
 // SLA Configuration (in hours)
 const SLA_CONFIG = {
@@ -336,6 +337,20 @@ router.post('/', auth, async (req, res) => {
       VALUES ($1, $2, 'created', $3)
     `, [ticketId, req.user.id, `Created ticket: ${subject}`]);
 
+    // Send notifications for urgent tickets
+    if (priority === 'urgent') {
+      await notifyUsersByRole('support', 'urgent_ticket',
+        'Urgent Ticket Created',
+        `New urgent ticket #${ticketId}: ${subject}`,
+        `/tickets/${ticketId}`
+      );
+      await notifyUsersByRole('admin', 'urgent_ticket',
+        'Urgent Ticket Created',
+        `New urgent ticket #${ticketId}: ${subject}`,
+        `/tickets/${ticketId}`
+      );
+    }
+
     // Fetch the created ticket
     const result = await pool.query(`
       SELECT t.*, cp.display_name as customer_name
@@ -434,12 +449,37 @@ router.patch('/:id', auth, async (req, res) => {
       UPDATE tickets SET ${updates.join(', ')} WHERE id = $${paramIndex}
     `, params);
 
-    // Log activities
+    // Log activities and send notifications
     for (const activity of activities) {
       await pool.query(`
         INSERT INTO ticket_activity (ticket_id, user_id, action, old_value, new_value)
         VALUES ($1, $2, $3, $4, $5)
       `, [id, req.user.id, activity.action, activity.old, activity.new]);
+
+      // Send notification for ticket assignment
+      if (activity.action === 'assigned' && activity.new) {
+        await createNotification(
+          parseInt(activity.new),
+          'ticket_assigned',
+          'Ticket Assigned to You',
+          `Ticket #${id}: ${current.subject} has been assigned to you`,
+          `/tickets/${id}`
+        );
+      }
+
+      // Send notification for priority change to urgent
+      if (activity.action === 'priority_changed' && activity.new === 'urgent') {
+        await notifyUsersByRole('support', 'urgent_ticket',
+          'Ticket Escalated to Urgent',
+          `Ticket #${id}: ${current.subject} is now urgent`,
+          `/tickets/${id}`
+        );
+        await notifyUsersByRole('admin', 'urgent_ticket',
+          'Ticket Escalated to Urgent',
+          `Ticket #${id}: ${current.subject} is now urgent`,
+          `/tickets/${id}`
+        );
+      }
     }
 
     // Return updated ticket

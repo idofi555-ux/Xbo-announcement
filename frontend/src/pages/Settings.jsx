@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
-import { changePassword, healthCheck } from '../utils/api';
-import { Settings as SettingsIcon, Key, Server, CheckCircle, XCircle, Moon, Sun, Monitor } from 'lucide-react';
+import { changePassword, healthCheck, getNotificationSettings, updateNotificationSettings } from '../utils/api';
+import { Settings as SettingsIcon, Key, Server, CheckCircle, XCircle, Moon, Sun, Bell } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Settings() {
@@ -15,10 +15,35 @@ export default function Settings() {
     confirmPassword: ''
   });
   const [saving, setSaving] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [savingNotifications, setSavingNotifications] = useState(false);
 
   useEffect(() => {
     checkHealth();
+    loadNotificationSettings();
   }, []);
+
+  const loadNotificationSettings = async () => {
+    try {
+      const { data } = await getNotificationSettings();
+      setNotifyEmail(data.notify_email);
+    } catch (error) {
+      console.error('Failed to load notification settings:', error);
+    }
+  };
+
+  const handleNotificationToggle = async () => {
+    setSavingNotifications(true);
+    try {
+      await updateNotificationSettings({ notify_email: !notifyEmail });
+      setNotifyEmail(!notifyEmail);
+      toast.success('Notification settings updated');
+    } catch (error) {
+      toast.error('Failed to update notification settings');
+    } finally {
+      setSavingNotifications(false);
+    }
+  };
 
   const checkHealth = async () => {
     try {
@@ -93,6 +118,44 @@ export default function Settings() {
               )}
             </span>
           </button>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="card p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Bell className="w-5 h-5 text-slate-400" />
+          <h2 className="text-lg font-medium text-slate-800 dark:text-white">Notifications</h2>
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div>
+              <span className="text-slate-700 dark:text-slate-200">Email Notifications</span>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Receive email alerts for urgent tickets and SLA breaches
+              </p>
+            </div>
+            <button
+              onClick={handleNotificationToggle}
+              disabled={savingNotifications}
+              className={`relative w-14 h-8 rounded-full transition-colors duration-200 ${
+                notifyEmail ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'
+              } ${savingNotifications ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span
+                className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-200 flex items-center justify-center ${
+                  notifyEmail ? 'translate-x-7' : 'translate-x-1'
+                }`}
+              >
+                <Bell className={`w-3.5 h-3.5 ${notifyEmail ? 'text-blue-500' : 'text-slate-400'}`} />
+              </span>
+            </button>
+          </div>
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              <strong>In-app notifications</strong> are always enabled. Click the bell icon in the header to view your notifications.
+            </p>
+          </div>
         </div>
       </div>
 

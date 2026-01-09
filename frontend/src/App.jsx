@@ -23,8 +23,8 @@ import Tickets from './pages/Tickets';
 import TicketView from './pages/TicketView';
 import Logs from './pages/Logs';
 
-function ProtectedRoute({ children, adminOnly = false }) {
-  const { user, loading, isAdmin } = useAuth();
+function ProtectedRoute({ children, adminOnly = false, requiredPermission = null }) {
+  const { user, loading, isAdmin, hasPermission } = useAuth();
 
   if (loading) {
     return (
@@ -39,6 +39,11 @@ function ProtectedRoute({ children, adminOnly = false }) {
   }
 
   if (adminOnly && !isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Check for required permission
+  if (requiredPermission && !hasPermission(requiredPermission)) {
     return <Navigate to="/" replace />;
   }
 
@@ -67,24 +72,33 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-      
+
+      {/* Dashboard - all authenticated users */}
       <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
-      <Route path="/announcements/:id" element={<ProtectedRoute><AnnouncementEditor /></ProtectedRoute>} />
-      <Route path="/channels" element={<ProtectedRoute><Channels /></ProtectedRoute>} />
-      <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
-      <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-      <Route path="/click-details" element={<ProtectedRoute><ClickDetails /></ProtectedRoute>} />
-      <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
-      <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
-      <Route path="/inbox/:id" element={<ProtectedRoute><ConversationView /></ProtectedRoute>} />
-      <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
-      <Route path="/customers/:id" element={<ProtectedRoute><CustomerDetail /></ProtectedRoute>} />
-      <Route path="/quick-replies" element={<ProtectedRoute><QuickReplies /></ProtectedRoute>} />
-      <Route path="/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
-      <Route path="/tickets/:id" element={<ProtectedRoute><TicketView /></ProtectedRoute>} />
+
+      {/* Marketing routes - require marketing permissions */}
+      <Route path="/announcements" element={<ProtectedRoute requiredPermission="announcements"><Announcements /></ProtectedRoute>} />
+      <Route path="/announcements/:id" element={<ProtectedRoute requiredPermission="announcements"><AnnouncementEditor /></ProtectedRoute>} />
+      <Route path="/channels" element={<ProtectedRoute requiredPermission="channels"><Channels /></ProtectedRoute>} />
+      <Route path="/campaigns" element={<ProtectedRoute requiredPermission="campaigns"><Campaigns /></ProtectedRoute>} />
+      <Route path="/analytics" element={<ProtectedRoute requiredPermission="analytics"><Analytics /></ProtectedRoute>} />
+      <Route path="/click-details" element={<ProtectedRoute requiredPermission="click-details"><ClickDetails /></ProtectedRoute>} />
+      <Route path="/insights" element={<ProtectedRoute requiredPermission="insights"><Insights /></ProtectedRoute>} />
+
+      {/* Support routes - require support permissions */}
+      <Route path="/inbox" element={<ProtectedRoute requiredPermission="inbox"><Inbox /></ProtectedRoute>} />
+      <Route path="/inbox/:id" element={<ProtectedRoute requiredPermission="inbox"><ConversationView /></ProtectedRoute>} />
+      <Route path="/customers" element={<ProtectedRoute requiredPermission="customers"><Customers /></ProtectedRoute>} />
+      <Route path="/customers/:id" element={<ProtectedRoute requiredPermission="customers"><CustomerDetail /></ProtectedRoute>} />
+      <Route path="/quick-replies" element={<ProtectedRoute requiredPermission="quick-replies"><QuickReplies /></ProtectedRoute>} />
+      <Route path="/tickets" element={<ProtectedRoute requiredPermission="tickets"><Tickets /></ProtectedRoute>} />
+      <Route path="/tickets/:id" element={<ProtectedRoute requiredPermission="tickets"><TicketView /></ProtectedRoute>} />
+      <Route path="/logs" element={<ProtectedRoute requiredPermission="logs"><Logs /></ProtectedRoute>} />
+
+      {/* Admin routes */}
       <Route path="/users" element={<ProtectedRoute adminOnly><Users /></ProtectedRoute>} />
-      <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
+
+      {/* Settings - all authenticated users */}
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
