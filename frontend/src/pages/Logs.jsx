@@ -1,358 +1,197 @@
 import { useState, useEffect } from 'react';
-import { getLogs, cleanupLogs } from '../utils/api';
+import api from '../utils/api';
 import {
-  AlertCircle, AlertTriangle, Info, CheckCircle,
-  Search, Filter, Trash2, ChevronDown, ChevronUp,
-  Calendar, RefreshCw, MessageSquare, Shield, Server, Radio
+  ScrollText,
+  RefreshCw,
+  Search,
+  Clock,
+  User,
+  Activity,
+  AlertCircle,
+  CheckCircle,
+  Info,
+  ChevronDown
 } from 'lucide-react';
-import { format } from 'date-fns';
-import toast from 'react-hot-toast';
 
-const TYPE_CONFIG = {
-  error: { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-900/30', badge: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' },
-  warning: { icon: AlertTriangle, color: 'text-yellow-500', bg: 'bg-yellow-100 dark:bg-yellow-900/30', badge: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300' },
-  info: { icon: Info, color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' },
-  success: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-100 dark:bg-green-900/30', badge: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' }
+const logTypeColors = {
+  info: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  success: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  warning: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  error: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
 };
 
-const CATEGORY_CONFIG = {
-  telegram: { icon: MessageSquare, label: 'Telegram' },
-  api: { icon: Server, label: 'API' },
-  system: { icon: Radio, label: 'System' },
-  auth: { icon: Shield, label: 'Auth' },
-  channel: { icon: Radio, label: 'Channel' },
-  support: { icon: MessageSquare, label: 'Support' }
+const logTypeIcons = {
+  info: Info,
+  success: CheckCircle,
+  warning: AlertCircle,
+  error: AlertCircle
 };
 
 export default function Logs() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ error: 0, warning: 0, info: 0, success: 0 });
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
-  const [expandedLog, setExpandedLog] = useState(null);
-  const [filters, setFilters] = useState({
-    type: '',
-    category: '',
-    search: '',
-    start_date: '',
-    end_date: ''
-  });
-  const [showFilters, setShowFilters] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-
-  const limit = 20;
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(loadLogs, 10000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, page, filters]);
+    fetchLogs();
+  }, [filter]);
 
-  useEffect(() => {
-    loadLogs();
-  }, [page, filters]);
-
-  const loadLogs = async () => {
+  const fetchLogs = async () => {
     try {
       setLoading(true);
-      const params = {
-        ...filters,
-        limit,
-        offset: page * limit
-      };
-      // Remove empty params
-      Object.keys(params).forEach(key => {
-        if (!params[key]) delete params[key];
-      });
-
-      const { data } = await getLogs(params);
-      setLogs(data.logs);
-      setTotal(data.total);
-      setStats(data.stats);
+      const params = filter !== 'all' ? { type: filter } : {};
+      const response = await api.get('/logs', { params });
+      setLogs(response.data || []);
     } catch (error) {
-      toast.error('Failed to load logs');
+      console.error('Failed to fetch logs:', error);
+      setLogs([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCleanup = async () => {
-    if (!confirm('Delete all logs older than 30 days?')) return;
-
-    try {
-      const { data } = await cleanupLogs(30);
-      toast.success(`Deleted ${data.deleted} old logs`);
-      loadLogs();
-    } catch (error) {
-      toast.error('Failed to clean up logs');
-    }
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchLogs();
+    setRefreshing(false);
   };
 
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    setPage(0);
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    return new Date(timestamp).toLocaleString();
   };
 
-  const clearFilters = () => {
-    setFilters({
-      type: '',
-      category: '',
-      search: '',
-      start_date: '',
-      end_date: ''
-    });
-    setPage(0);
-  };
-
-  const totalPages = Math.ceil(total / limit);
-
-  const parseDetails = (details) => {
-    if (!details) return null;
-    try {
-      return typeof details === 'string' ? JSON.parse(details) : details;
-    } catch {
-      return null;
-    }
-  };
+  const filteredLogs = logs.filter(log => {
+    if (!search) return true;
+    const searchLower = search.toLowerCase();
+    return (
+      log.action?.toLowerCase().includes(searchLower) ||
+      log.details?.toLowerCase().includes(searchLower) ||
+      log.user_name?.toLowerCase().includes(searchLower)
+    );
+  });
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800 dark:text-white">System Logs</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Monitor system events and errors</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={loadLogs}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
-          <button
-            onClick={handleCleanup}
-            className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            Clear Old Logs
-          </button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Object.entries(TYPE_CONFIG).map(([type, config]) => {
-          const Icon = config.icon;
-          return (
-            <div
-              key={type}
-              onClick={() => handleFilterChange('type', filters.type === type ? '' : type)}
-              className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                filters.type === type
-                  ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
-                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-              } bg-white dark:bg-slate-800`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${config.bg}`}>
-                  <Icon className={`w-5 h-5 ${config.color}`} />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white">{stats[type] || 0}</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 capitalize">{type} (24h)</p>
-                </div>
-              </div>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/25">
+              <ScrollText className="w-5 h-5 text-white" />
             </div>
-          );
-        })}
+            Activity Logs
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
+            View system activity and audit trail
+          </p>
+        </div>
+
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="btn btn-secondary"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
+      <div className="card p-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search logs..."
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="input pl-10 w-full"
             />
           </div>
 
-          {/* Category Filter */}
-          <select
-            value={filters.category}
-            onChange={(e) => handleFilterChange('category', e.target.value)}
-            className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Categories</option>
-            {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
-              <option key={key} value={key}>{config.label}</option>
-            ))}
-          </select>
-
-          {/* Toggle Advanced Filters */}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-          >
-            <Filter className="w-4 h-4" />
-            Filters
-            {showFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-
-          {(filters.type || filters.category || filters.search || filters.start_date || filters.end_date) && (
-            <button
-              onClick={clearFilters}
-              className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
+          <div className="relative">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="input pr-10 appearance-none cursor-pointer"
             >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {/* Advanced Filters */}
-        {showFilters && (
-          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={filters.start_date}
-                onChange={(e) => handleFilterChange('start_date', e.target.value)}
-                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                End Date
-              </label>
-              <input
-                type="date"
-                value={filters.end_date}
-                onChange={(e) => handleFilterChange('end_date', e.target.value)}
-                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-white"
-              />
-            </div>
+              <option value="all">All Types</option>
+              <option value="info">Info</option>
+              <option value="success">Success</option>
+              <option value="warning">Warning</option>
+              <option value="error">Error</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Logs Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="card overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-slate-500 dark:text-slate-400">
-            Loading logs...
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
           </div>
-        ) : logs.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 dark:text-slate-400">
-            No logs found
+        ) : filteredLogs.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <ScrollText className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-2">
+              No logs found
+            </h3>
+            <p className="text-slate-500 dark:text-slate-400">
+              {search ? 'Try adjusting your search' : 'Activity logs will appear here'}
+            </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-200 dark:divide-slate-700">
-            {logs.map((log) => {
-              const typeConfig = TYPE_CONFIG[log.type] || TYPE_CONFIG.info;
-              const categoryConfig = CATEGORY_CONFIG[log.category] || CATEGORY_CONFIG.system;
-              const TypeIcon = typeConfig.icon;
-              const CategoryIcon = categoryConfig.icon;
-              const details = parseDetails(log.details);
-              const isExpanded = expandedLog === log.id;
-
+          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+            {filteredLogs.map((log) => {
+              const TypeIcon = logTypeIcons[log.type] || Info;
               return (
-                <div key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                  <div
-                    className="p-4 cursor-pointer"
-                    onClick={() => setExpandedLog(isExpanded ? null : log.id)}
-                  >
-                    <div className="flex items-start gap-4">
-                      {/* Type Icon */}
-                      <div className={`p-2 rounded-lg ${typeConfig.bg} mt-0.5`}>
-                        <TypeIcon className={`w-4 h-4 ${typeConfig.color}`} />
+                <div key={log.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                  <div className="flex items-start gap-4">
+                    <div className={`p-2 rounded-lg ${logTypeColors[log.type] || logTypeColors.info}`}>
+                      <TypeIcon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-slate-800 dark:text-white">
+                          {log.action}
+                        </span>
+                        <span className={`badge ${logTypeColors[log.type] || logTypeColors.info}`}>
+                          {log.type}
+                        </span>
                       </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${typeConfig.badge}`}>
-                            {log.type}
-                          </span>
-                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
-                            {categoryConfig.label}
-                          </span>
-                          {log.announcement_title && (
-                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
-                              {log.announcement_title}
-                            </span>
-                          )}
-                          {log.channel_title && (
-                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300">
-                              {log.channel_title}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-slate-800 dark:text-white">{log.message}</p>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {format(new Date(log.timestamp), 'MMM d, yyyy HH:mm:ss')}
-                          {log.user_name && ` - by ${log.user_name}`}
+                      {log.details && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+                          {log.details}
                         </p>
-                      </div>
-
-                      {/* Expand Icon */}
-                      {details && (
-                        <div className="text-slate-400">
-                          {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                        </div>
                       )}
+                      <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTimestamp(log.created_at)}
+                        </span>
+                        {log.user_name && (
+                          <span className="flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            {log.user_name}
+                          </span>
+                        )}
+                        {log.ip_address && (
+                          <span className="flex items-center gap-1">
+                            <Activity className="w-3 h-3" />
+                            {log.ip_address}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  {/* Expanded Details */}
-                  {isExpanded && details && (
-                    <div className="px-4 pb-4 ml-14">
-                      <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                        <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Details</h4>
-                        <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-x-auto whitespace-pre-wrap">
-                          {JSON.stringify(details, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Showing {page * limit + 1} to {Math.min((page + 1) * limit, total)} of {total} logs
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage(p => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="px-3 py-1 border border-slate-200 dark:border-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-                className="px-3 py-1 border border-slate-200 dark:border-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                Next
-              </button>
-            </div>
           </div>
         )}
       </div>

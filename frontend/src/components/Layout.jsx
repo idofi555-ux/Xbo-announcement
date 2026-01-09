@@ -291,6 +291,7 @@ export default function Layout({ children }) {
             </button>
           </div>
         </div>
+        <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-3">v1.1.0</p>
       </div>
     </div>
   );
