@@ -85,4 +85,9 @@ export const getUserDetails = (telegramUserId) => api.get(`/analytics/user/${tel
 // Health check
 export const healthCheck = () => api.get('/health');
 
+// System Logs
+export const getLogs = (params) => api.get('/logs', { params });
+export const getLog = (id) => api.get(`/logs/${id}`);
+export const cleanupLogs = (days = 30) => api.delete('/logs/cleanup', { params: { days } });
+
 export default api;

@@ -24,7 +24,8 @@ import {
   Inbox,
   MessageSquare,
   UserCircle,
-  Ticket
+  Ticket,
+  ScrollText
 } from 'lucide-react';
 
 const navigation = [
@@ -46,6 +47,7 @@ const supportNavigation = [
 
 const adminNavigation = [
   { name: 'Team', href: '/users', icon: Users },
+  { name: 'Logs', href: '/logs', icon: ScrollText },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

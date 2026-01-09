@@ -68,7 +68,7 @@ export default function Announcements() {
     setActiveMenu(null);
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, errorMessage = null) => {
     const badges = {
       draft: { class: 'badge bg-dark-700 text-dark-300', icon: Edit },
       scheduled: { class: 'badge-info', icon: Clock },
@@ -77,6 +77,22 @@ export default function Announcements() {
     };
     const badge = badges[status] || badges.draft;
     const Icon = badge.icon;
+
+    if (status === 'failed' && errorMessage) {
+      return (
+        <span className={`badge ${badge.class} relative group cursor-help`}>
+          <Icon className="w-3 h-3 mr-1" />
+          {status}
+          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50">
+            <div className="bg-slate-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
+              <p className="font-medium mb-1">Error Details:</p>
+              <p className="text-slate-300">{errorMessage}</p>
+            </div>
+          </div>
+        </span>
+      );
+    }
+
     return (
       <span className={`badge ${badge.class}`}>
         <Icon className="w-3 h-3 mr-1" />
@@ -159,7 +175,7 @@ export default function Announcements() {
                     >
                       {announcement.title}
                     </Link>
-                    {getStatusBadge(announcement.status)}
+                    {getStatusBadge(announcement.status, announcement.last_error)}
                   </div>
                   <p className="text-sm text-dark-400 line-clamp-1 mb-3">
                     {announcement.content?.replace(/<[^>]*>/g, '').substring(0, 100)}...

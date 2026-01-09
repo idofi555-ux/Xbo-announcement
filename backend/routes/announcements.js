@@ -20,7 +20,8 @@ router.get('/', authenticate, async (req, res) => {
         (SELECT COALESCE(SUM(views), 0) FROM announcement_targets WHERE announcement_id = a.id) as total_views,
         (SELECT COUNT(*) FROM link_clicks lc
          JOIN tracked_links tl ON lc.link_id = tl.id
-         WHERE tl.announcement_id = a.id) as total_clicks
+         WHERE tl.announcement_id = a.id) as total_clicks,
+        (SELECT error FROM announcement_targets WHERE announcement_id = a.id AND error IS NOT NULL LIMIT 1) as last_error
       FROM announcements a
       LEFT JOIN users u ON a.created_by = u.id
       LEFT JOIN campaigns c ON a.campaign_id = c.id

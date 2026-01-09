@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../models/database');
 const { generateToken, authenticate, adminOnly, logActivity } = require('../middleware/auth');
+const { logLoginSuccess, logLoginFailed } = require('../utils/logger');
 
 const router = express.Router();
 
@@ -18,6 +19,7 @@ router.post('/login', async (req, res) => {
     const user = result.rows[0];
 
     if (!user || !bcrypt.compareSync(password, user.password)) {
+      await logLoginFailed(email, !user ? 'User not found' : 'Invalid password');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -26,6 +28,7 @@ router.post('/login', async (req, res) => {
 
     const token = generateToken(user);
     await logActivity(user.id, 'login');
+    await logLoginSuccess(user.id, email);
 
     res.json({
       token,
@@ -38,6 +41,7 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    await logLoginFailed(email, error.message);
     res.status(500).json({ error: 'Login failed' });
   }
 });

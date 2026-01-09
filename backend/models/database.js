@@ -330,6 +330,23 @@ const initDatabase = async () => {
           CREATE INDEX IF NOT EXISTS idx_conversations_channel ON conversations(channel_id);
           CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
           CREATE INDEX IF NOT EXISTS idx_customer_profiles_telegram ON customer_profiles(telegram_user_id);
+
+          -- System Logs Table
+          CREATE TABLE IF NOT EXISTS system_logs (
+            id SERIAL PRIMARY KEY,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            type TEXT NOT NULL CHECK(type IN ('error', 'warning', 'info', 'success')),
+            category TEXT NOT NULL CHECK(category IN ('telegram', 'api', 'system', 'auth', 'channel')),
+            message TEXT NOT NULL,
+            details TEXT,
+            announcement_id INTEGER REFERENCES announcements(id) ON DELETE SET NULL,
+            user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            channel_id INTEGER REFERENCES channels(id) ON DELETE SET NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp);
+          CREATE INDEX IF NOT EXISTS idx_system_logs_type ON system_logs(type);
+          CREATE INDEX IF NOT EXISTS idx_system_logs_category ON system_logs(category);
         `);
 
         // Run migrations to add missing columns
@@ -591,6 +608,23 @@ const initDatabase = async () => {
         CREATE INDEX IF NOT EXISTS idx_conversations_channel ON conversations(channel_id);
         CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
         CREATE INDEX IF NOT EXISTS idx_customer_profiles_telegram ON customer_profiles(telegram_user_id);
+
+        -- System Logs Table
+        CREATE TABLE IF NOT EXISTS system_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          type TEXT NOT NULL CHECK(type IN ('error', 'warning', 'info', 'success')),
+          category TEXT NOT NULL CHECK(category IN ('telegram', 'api', 'system', 'auth', 'channel')),
+          message TEXT NOT NULL,
+          details TEXT,
+          announcement_id INTEGER REFERENCES announcements(id) ON DELETE SET NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          channel_id INTEGER REFERENCES channels(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_system_logs_type ON system_logs(type);
+        CREATE INDEX IF NOT EXISTS idx_system_logs_category ON system_logs(category);
       `);
 
       // Run migrations to add missing columns to existing tables

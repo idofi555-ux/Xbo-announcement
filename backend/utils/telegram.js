@@ -3,6 +3,7 @@ require('dotenv').config();
 
 const TelegramBot = require('node-telegram-bot-api');
 const { pool, USE_POSTGRES } = require('../models/database');
+const { logTelegramSuccess, logTelegramError, logChannelRegistered, logChannelError } = require('./logger');
 
 let bot = null;
 let botInitialized = false;
@@ -117,9 +118,9 @@ const initBot = () => {
         }
 
         // Register the channel
-        await pool.query(
+        const result = await pool.query(
           `INSERT INTO channels (telegram_id, title, type, member_count)
-           VALUES ($1, $2, $3, $4)`,
+           VALUES ($1, $2, $3, $4) RETURNING id`,
           [
             chat.id.toString(),
             chat.title || chat.username || 'Private Chat',
@@ -127,6 +128,9 @@ const initBot = () => {
             memberCount
           ]
         );
+
+        // Log channel registration
+        await logChannelRegistered(chat.title || 'Private Chat', result.rows[0].id);
 
         bot.sendMessage(chat.id,
           `✅ Successfully registered!\n\n` +
@@ -137,6 +141,12 @@ const initBot = () => {
         );
       } catch (error) {
         console.error('Registration error:', error);
+        // Log registration error
+        await logChannelError(`Failed to register channel: ${chat.title || chat.id}`, null, {
+          telegram_id: chat.id.toString(),
+          chat_title: chat.title,
+          error: error.message
+        });
         bot.sendMessage(chat.id, '❌ Error registering chat. Please try again.');
       }
     });
@@ -489,6 +499,15 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
       message = await bot.sendMessage(channel.telegram_id, content, options);
     }
     console.log('Message sent successfully, message_id:', message.message_id);
+
+    // Log success
+    await logTelegramSuccess(
+      `Announcement sent to "${channel.title}"`,
+      announcement.id,
+      channel.id,
+      { message_id: message.message_id, telegram_id: channel.telegram_id }
+    );
+
     return message;
   } catch (error) {
     console.error('=== Telegram Send Error ===');
@@ -499,8 +518,18 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
 
     // Create more helpful error messages
     let userMessage = error.message;
+    const errorDetails = {
+      error_code: error.code,
+      telegram_id: channel.telegram_id,
+      channel_title: channel.title,
+      original_error: error.message
+    };
+
     if (error.code === 'ETELEGRAM') {
       const desc = error.response?.body?.description || error.message;
+      errorDetails.telegram_description = desc;
+      errorDetails.telegram_error_code = error.response?.body?.error_code;
+
       if (desc.includes('chat not found')) {
         userMessage = `Chat not found. Make sure the bot is added to the channel "${channel.title}" as an admin.`;
       } else if (desc.includes('bot was blocked')) {
@@ -513,6 +542,14 @@ const sendAnnouncement = async (channelId, announcement, trackedLinks = []) => {
         userMessage = desc;
       }
     }
+
+    // Log error
+    await logTelegramError(
+      `Failed to send announcement to "${channel.title}": ${userMessage}`,
+      announcement.id,
+      channel.id,
+      errorDetails
+    );
 
     throw new Error(userMessage);
   }
